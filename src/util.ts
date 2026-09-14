@@ -1,26 +1,5 @@
 /** Shared helpers for the jira-local tool. */
 
-const YAML_UNSAFE = /[:#\-?*&![\]{}>|@`"'\n]/; // conservative: always quote
-const YAML_EDGE = /[\s.]|\.$/;
-
-/** Quote a scalar for a single-line YAML front matter value. */
-export function yamlQuote(value: string): string {
-  return `"${
-    value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ")
-  }"`;
-}
-
-export function yamlScalar(value: string): string {
-  if (value === "") return '""';
-  if (
-    YAML_UNSAFE.test(value) || YAML_EDGE.test(value) ||
-    YAML_EDGE.test(value + " ")
-  ) {
-    return yamlQuote(value);
-  }
-  return value;
-}
-
 /** Flatten a Jira display name object (user/project/version) to a string. */
 export function displayName(
   value: { displayName?: string; name?: string } | null | undefined,

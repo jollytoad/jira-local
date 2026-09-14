@@ -33,7 +33,7 @@ import {
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import type { Dirent } from "node:fs";
 import { categorizeIssue } from "./categorize.ts";
-import type { LocalIssueFile } from "./sync.ts";
+import type { IssueFrontMatter, LocalIssueFile } from "./types.ts";
 import { progress } from "./util.ts";
 
 export interface CategoryCounters {
@@ -232,7 +232,7 @@ function buildDesired(
         const segments = sanitizeCategoryPath(raw);
         if (segments.length === 0) continue;
         const category = segments.join("/");
-        const summary = sanitizeName(frontMatter["summary"] ?? "");
+        const summary = sanitizeName(frontMatter.summary);
         const base = summary
           ? `${file.key}-${summary.slice(0, MAX_SUMMARY_LENGTH)}.md`
           : `${file.key}.md`;
@@ -259,28 +259,74 @@ function buildDesired(
 }
 
 /**
- * Parse an issue file into front-matter values (strings) and the raw
- * markdown body. Malformed front matter degrades to empty values, with the
- * whole content as body, so categorisation never crashes a sync.
+ * Parse an issue file into its front matter and the raw markdown body.
+ * Values are coerced to the `IssueFrontMatter` shape; unknown or malformed
+ * front matter degrades to defaults, with the whole content as body, so
+ * categorisation never crashes a sync.
  */
 function parseIssueFile(
   content: string,
-): { frontMatter: Record<string, string>; body: string } {
+): { frontMatter: IssueFrontMatter; body: string } {
   try {
-    if (!test(content)) return { frontMatter: {}, body: content };
-    const { attrs, body } = extractYaml<Record<string, unknown>>(content);
-    const frontMatter: Record<string, string> = {};
-    for (const [key, value] of Object.entries(attrs)) {
-      frontMatter[key] = value === null || value === undefined
-        ? ""
-        : typeof value === "string"
-        ? value
-        : String(value);
+    if (!test(content)) {
+      return { frontMatter: emptyFrontMatter(), body: content };
     }
-    return { frontMatter, body };
+    const { attrs, body } = extractYaml<Record<string, unknown>>(content);
+    return { frontMatter: coerceFrontMatter(attrs), body };
   } catch {
-    return { frontMatter: {}, body: content };
+    return { frontMatter: emptyFrontMatter(), body: content };
   }
+}
+
+function emptyFrontMatter(): IssueFrontMatter {
+  return {
+    key: "",
+    summary: "",
+    status: "",
+    type: "",
+    priority: "",
+    assignee: "",
+    reporter: "",
+    labels: [],
+    parent: "",
+    children: "",
+    linked: "",
+    created: "",
+    updated: "",
+    url: "",
+  };
+}
+
+/** Coerce parsed YAML into the IssueFrontMatter shape (best effort). */
+function coerceFrontMatter(attrs: Record<string, unknown>): IssueFrontMatter {
+  const stringOf = (key: string): string => {
+    const value = attrs[key];
+    if (typeof value === "string") return value;
+    if (value === null || value === undefined) return "";
+    return String(value);
+  };
+  const labels = attrs.labels;
+  return {
+    ...emptyFrontMatter(),
+    key: stringOf("key"),
+    summary: stringOf("summary"),
+    status: stringOf("status"),
+    type: stringOf("type"),
+    priority: stringOf("priority"),
+    assignee: stringOf("assignee"),
+    reporter: stringOf("reporter"),
+    labels: Array.isArray(labels)
+      ? labels.map((label) => String(label))
+      : labels === null || labels === undefined
+      ? []
+      : [String(labels)],
+    parent: stringOf("parent"),
+    children: stringOf("children"),
+    linked: stringOf("linked"),
+    created: stringOf("created"),
+    updated: stringOf("updated"),
+    url: stringOf("url"),
+  };
 }
 
 /**

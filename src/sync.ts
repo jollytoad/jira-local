@@ -13,27 +13,13 @@ import {
 } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { Dirent } from "node:fs";
-import type { SyncIssue } from "./jira.ts";
+import type { LocalIssueFile, SyncCounters, SyncIssue } from "./types.ts";
 import { progress } from "./util.ts";
 
 const ISSUE_FILE_PATTERN = /^([A-Za-z][A-Za-z0-9]*-\d+)\.md$/;
 
-export interface LocalIssueFile {
-  key: string;
-  absPath: string;
-  relPath: string;
-  content: string;
-}
-
 /** Sync one streamed issue against the local tree. Returns the action taken. */
 export type SyncAction = "create" | "update" | "unchanged";
-
-export interface SyncCounters {
-  created: number;
-  updated: number;
-  deleted: number;
-  unchanged: number;
-}
 
 /** Scan the output folder for issue files belonging to `projectKey`. */
 export async function scanLocal(

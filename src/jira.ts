@@ -1,6 +1,5 @@
 /** Minimal Jira Cloud REST v3 client for the sync tool. */
 
-import type { AdfNode } from "./adf-to-markdown.ts";
 import {
   JiraApiError,
   JiraAuthError,
@@ -9,7 +8,13 @@ import {
   RateLimitError,
 } from "./errors.ts";
 import { renderIssue } from "./render.ts";
-import type { JiraComment, JiraIssue } from "./render.ts";
+import type {
+  AdfNode,
+  Credentials,
+  JiraComment,
+  JiraIssue,
+  SyncIssue,
+} from "./types.ts";
 import { pool, progress } from "./util.ts";
 
 const SEARCH_PAGE_SIZE = 100;
@@ -32,18 +37,6 @@ export function validateFetchResult(
     throw new JiraSearchMismatchError(expectedCount, fetched);
   }
   return allowEmpty ? "ok" : "refuse-empty";
-}
-
-export interface Credentials {
-  site: string;
-  email: string;
-  token: string;
-}
-
-/** An issue rendered into its final markdown form. */
-export interface SyncIssue {
-  key: string;
-  markdown: string;
 }
 
 interface SearchResponse {

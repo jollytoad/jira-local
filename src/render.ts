@@ -1,81 +1,17 @@
-import type { AdfNode } from "./adf-to-markdown.ts";
+import { stringify } from "@std/yaml";
 import { adfToMarkdown } from "./adf-to-markdown.ts";
-import { displayName, isoDate, yamlScalar } from "./util.ts";
-
-export interface JiraUserRef {
-  displayName?: string;
-  name?: string;
-  accountId?: string;
-}
-
-export interface JiraComment {
-  id: string;
-  author?: JiraUserRef | null;
-  created?: string;
-  updated?: string;
-  body?: AdfNode | string | null;
-}
-
-export interface JiraIssueRef {
-  key?: string;
-  fields?: {
-    summary?: string;
-    issuetype?: { name?: string; subtask?: boolean } | null;
-  } | null;
-}
-
-export interface JiraIssueLink {
-  type?: { name?: string; inward?: string; outward?: string } | null;
-  inwardIssue?: JiraIssueRef;
-  outwardIssue?: JiraIssueRef;
-}
-
-export interface JiraIssue {
-  key: string;
-  fields: {
-    summary: string;
-    status?: { name?: string; statusCategory?: { name?: string } } | null;
-    issuetype?: { name?: string } | null;
-    parent?: JiraIssueRef | null;
-    subtasks?: JiraIssueRef[];
-    issuelinks?: JiraIssueLink[];
-    priority?: { name?: string } | null;
-    assignee?: JiraUserRef | null;
-    reporter?: JiraUserRef | null;
-    labels?: string[];
-    created?: string;
-    updated?: string;
-    creator?: JiraUserRef | null;
-    description?: AdfNode | null;
-    /** Embedded by the search when "comment" is requested. */
-    comment?: {
-      total?: number;
-      comments?: JiraComment[];
-    } | null;
-  };
-}
+import type {
+  IssueFrontMatter,
+  JiraComment,
+  JiraIssue,
+  JiraIssueRef,
+} from "./types.ts";
+import { displayName, isoDate } from "./util.ts";
 
 export interface RenderedIssue {
   /** Full markdown file content. */
   markdown: string;
 }
-
-const FRONT_MATTER_ORDER = [
-  "key",
-  "summary",
-  "status",
-  "type",
-  "priority",
-  "assignee",
-  "reporter",
-  "labels",
-  "parent",
-  "children",
-  "linked",
-  "created",
-  "updated",
-  "url",
-] as const;
 
 /** Build the markdown representation of a single issue. */
 export function renderIssue(
@@ -87,7 +23,7 @@ export function renderIssue(
   const status = fields.status?.name ?? "Unknown";
   const summary = fields.summary ?? "";
 
-  const frontMatter: Record<string, string> = {
+  const frontMatter: IssueFrontMatter = {
     key: issue.key,
     summary,
     status,
@@ -95,7 +31,7 @@ export function renderIssue(
     priority: fields.priority?.name ?? "",
     assignee: displayName(fields.assignee),
     reporter: displayName(fields.reporter),
-    labels: fields.labels?.length ? fields.labels.join(", ") : "",
+    labels: fields.labels ?? [],
     parent: fields.parent?.key ?? "",
     children: refKeys(fields.subtasks ?? []),
     linked: refKeys(
@@ -109,7 +45,15 @@ export function renderIssue(
   };
 
   const sections: string[] = [];
-  sections.push(renderFrontMatter(frontMatter));
+  sections.push(
+    `---\n${
+      stringify(frontMatter, {
+        lineWidth: -1,
+        sortKeys: false,
+        flowLevel: 1,
+      }).trimEnd()
+    }\n---`,
+  );
   sections.push(`# ${issue.key} ${summary}`);
   const description = adfToMarkdown(fields.description);
   if (description) sections.push(`## Description\n\n${description}`);
@@ -151,13 +95,4 @@ function refKeys(refs: ReadonlyArray<JiraIssueRef | null | undefined>): string {
     if (key && !keys.includes(key)) keys.push(key);
   }
   return keys.join(", ");
-}
-
-function renderFrontMatter(values: Record<string, string>): string {
-  const lines: string[] = ["---"];
-  for (const key of FRONT_MATTER_ORDER) {
-    lines.push(`${key}: ${yamlScalar(values[key] ?? "")}`);
-  }
-  lines.push("---");
-  return lines.join("\n");
 }

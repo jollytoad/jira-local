@@ -1,6 +1,7 @@
 {
   "imports": {
-    "@std/front-matter": "jsr:@std/front-matter@^1.0.9"
+    "@std/front-matter": "jsr:@std/front-matter@^1.0.9",
+    "@std/yaml": "jsr:@std/yaml@^1.2.0"
   },
   "tasks": {
     "sync": "deno run --allow-net --allow-read --allow-write --allow-env --env-file src/main.ts",

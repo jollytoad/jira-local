@@ -10,9 +10,9 @@ deno task sync --dry-run    # decide but write nothing
 deno task categorize        # re-categorise only (offline; sync also does this)
 ```
 
-- Deno 2.x, one runtime dependency (`@std/front-matter` via `imports` in
-  `deno.json`, pinned by `deno.lock` — commit it), no CI. `deno task ok` is the
-  full check.
+- Deno 2.x, two runtime dependencies (`@std/front-matter`, `@std/yaml` via
+  `imports` in `deno.json`, pinned by `deno.lock` — commit it), no CI.
+  `deno task ok` is the full check.
 - The `sync`/`categorize` tasks use unscoped `--allow-write` because Deno
   refuses `symlink()` under path-scoped grants. The code itself only writes
   inside `.jira`.

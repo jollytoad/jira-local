@@ -33,10 +33,10 @@ type: "Task"
 priority: "Medium"
 assignee: "Mark Gibson"
 reporter: "Jane Doe"
-labels: "backend, urgent"
+labels: []
 parent: "EXAMPLE-42"
 children: ""
-linked: "EXAMPLE-99, EXAMPLE-120"
+linked: ["EXAMPLE-99", "EXAMPLE-120"]
 created: "2026-01-05"
 updated: "2026-09-12"
 url: "https://yoursite.atlassian.net/browse/EXAMPLE-123"
@@ -140,11 +140,13 @@ Source lives in `src/`:
 | `categorize.ts`      | The single `categorizeIssue` function: front matter + body → category strings (`/` nests folders)   |
 | `categories.ts`      | Reconciles those categories into symlink folders next to `all/` (manifest: `.categories.json`)      |
 | `state.ts`           | Incremental watermark load/save                                                                     |
-| `util.ts`            | Small shared helpers (progress logging, YAML quoting, pool)                                         |
+| `util.ts`            | Small shared helpers (progress logging, pool)                                                       |
 
-Run checks with `deno task ok` (fmt, lint, type-check). Runtime dependency:
+Run checks with `deno task ok` (fmt, lint, type-check). Runtime dependencies
+([pinned by `deno.lock`](./deno.lock)):
 [`@std/front-matter`](https://jsr.io/@std/front-matter) (issue front-matter
-parsing), pinned by `deno.lock`.
+parsing for categorisation) and [`@std/yaml`](https://jsr.io/@std/yaml)
+(front-matter rendering).
 
 ## Troubleshooting
 

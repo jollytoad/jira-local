@@ -18,7 +18,6 @@ import {
   JiraProjectError,
   JiraSearchMismatchError,
 } from "./errors.ts";
-import type { Credentials } from "./jira.ts";
 import {
   countIssues,
   preflightAuth,
@@ -26,13 +25,9 @@ import {
   streamIssues,
   validateFetchResult,
 } from "./jira.ts";
-import {
-  pruneDeleted,
-  scanLocal,
-  type SyncCounters,
-  syncIssue,
-} from "./sync.ts";
-import { loadState, saveState, statePath, type SyncState } from "./state.ts";
+import { pruneDeleted, scanLocal, syncIssue } from "./sync.ts";
+import { loadState, saveState, statePath } from "./state.ts";
+import type { Credentials, SyncCounters, SyncState } from "./types.ts";
 import { pluralise, progress } from "./util.ts";
 import { resolve } from "node:path";
 

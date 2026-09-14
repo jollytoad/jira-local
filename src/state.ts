@@ -7,17 +7,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-
-export interface SyncState {
-  /** Jira server-side `updated` watermark, "yyyy-MM-dd HH:mm". */
-  maxUpdated: string;
-  /** Atlassian account timezone the watermark was rendered in. */
-  timeZone?: string;
-  /** ISO timestamp of the last completed run (informational). */
-  lastRun?: string;
-  /** Project the watermark belongs to. */
-  project?: string;
-}
+import type { SyncState } from "./types.ts";
 
 /** Path of the state file, sibling of the issues output dir. */
 export function statePath(outDir: string): string {
