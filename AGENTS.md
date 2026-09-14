@@ -36,8 +36,11 @@ deno task categorize        # re-categorise only (offline; sync also does this)
 - Categories: `categorize.ts` holds the single `categorizeIssue` function
   (front-matter object + raw body → category strings, `/` = nesting);
   `categories.ts` reconciles it into symlink folders next to `all/`
-  (`.jira/issues/status/<status>/<KEY>-<summary>.md`), tracking managed folders
-  in `.jira/issues/.categories.json`. Runs on every sync and via
+  (`.jira/issues/status/<status>/<KEY>-<summary>.md` plus `assignee/`, `label/`
+  (one folder per label, `/` in a label nests) and `parent/<key>` when the issue
+  has one; unassigned issues go to `assignee/Unassigned`). Every non-hidden
+  directory under `.jira/issues/` other than `all/` is treated as managed, so
+  stale folders are cleaned up automatically. Runs on every sync and via
   `deno task categorize` (offline).
 - Incremental sync keys off Jira's `updated` timestamps (account timezone), not
   the local clock.

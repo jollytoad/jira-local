@@ -12,23 +12,22 @@
  * number of categories. Every run recomputes the desired link set from the
  * files currently in `all/` and reconciles: missing links are created,
  * changed targets are retargeted, links for issues that left a category are
- * removed, and category folders that end up empty are rmdir'd. Folders
- * previously managed are recorded in a manifest (`.categories.json`, sibling
- * of `all/`) so stale folders are cleaned up even after the categoriser stops
- * producing them; only manifest-claimed folders are ever removed.
+ * removed, and category folders that end up empty are rmdir'd. Every folder
+ * under the issues directory except `all/` (and hidden entries) is treated
+ * as managed, so stale folders are cleaned up even after the categoriser
+ * stops producing them; foreign files are left alone and only empty managed
+ * folders are ever removed.
  */
 
 import { extractYaml, test } from "@std/front-matter";
 import {
   mkdir,
   readdir,
-  readFile,
   readlink,
   rm,
   rmdir,
   stat,
   symlink,
-  writeFile,
 } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import type { Dirent } from "node:fs";
@@ -56,12 +55,6 @@ interface DesiredLink {
   targetAbs: string;
 }
 
-interface CategoryManifest {
-  version: 1;
-  categories: string[];
-}
-
-const MANIFEST_NAME = ".categories.json";
 const MAX_SUMMARY_LENGTH = 120;
 /** Characters unsafe in file names, plus control characters. */
 const UNSAFE_CHARS = /[\/\\:*?"<>|\p{C}]/gu;
@@ -84,12 +77,11 @@ export async function reconcileCategories(
     dirsRemoved: 0,
   };
   const categoriesDir = dirname(allDir);
-  const manifestPath = join(categoriesDir, MANIFEST_NAME);
-  const previous = await loadManifest(manifestPath);
+  const scanned = await scanManagedCategories(categoriesDir, basename(allDir));
   const desired = buildDesired(local, allDir);
 
   // Category folders that are no longer produced by the categoriser.
-  const staleDirs = previous.categories.filter(
+  const staleDirs = scanned.filter(
     (category) => !desired.categories.has(category),
   );
 
@@ -149,7 +141,7 @@ export async function reconcileCategories(
   //     wanted there. Foreign non-symlink files are left alone.
   for (
     const dirCategory of byDepth([
-      ...previous.categories,
+      ...scanned,
       ...desired.categories,
     ])
   ) {
@@ -172,7 +164,7 @@ export async function reconcileCategories(
   }
 
   // 3. Remove category folders that are no longer wanted (deepest first),
-  //    including manifest parents whose subfolders have all been removed.
+  //    including parents whose subfolders have all been removed.
   const removedLeaves = new Set(
     byDepth(staleDirs, true).map((category) => category.split("/")),
   );
@@ -201,20 +193,6 @@ export async function reconcileCategories(
     }
   }
 
-  // 4. Rewrite the manifest when the managed set changed.
-  const next: CategoryManifest = {
-    version: 1,
-    categories: [...desired.categories].sort(),
-  };
-  const serialized = JSON.stringify(next, null, 2) + "\n";
-  const previousJson = JSON.stringify(
-    previous.manifest ?? { version: 1, categories: [] },
-    null,
-    2,
-  ) + "\n";
-  if (!dryRun && serialized !== previousJson) {
-    await writeFile(manifestPath, serialized);
-  }
   return counters;
 }
 
@@ -364,35 +342,41 @@ function byDepth(categories: Iterable<string>, deepestFirst = false): string[] {
 }
 
 /**
- * Load the manifest of previously managed category folders. Stored category
- * strings are re-sanitised defensively before use.
+ * Discover the category folders currently on disk: every directory under
+ * `issuesDir` except the flat issue store `rootDir` and hidden entries,
+ * returned as sanitised "a/b" category strings (deduplicated). This is the
+ * managed set — folders found here but no longer produced by the categoriser
+ * are cleaned up.
  */
-async function loadManifest(
-  path: string,
-): Promise<{ manifest?: CategoryManifest; categories: string[] }> {
-  try {
-    const raw = await readFile(path, "utf8");
-    const parsed = JSON.parse(raw) as Partial<CategoryManifest>;
-    if (!Array.isArray(parsed.categories)) {
-      return { categories: [] };
+async function scanManagedCategories(
+  issuesDir: string,
+  rootDir: string,
+): Promise<string[]> {
+  const categories = new Set<string>();
+  const walk = async (segments: string[]): Promise<void> => {
+    const absDir = join(issuesDir, ...segments);
+    let entries: Dirent[];
+    try {
+      entries = await readdir(absDir, { withFileTypes: true });
+    } catch {
+      return; // vanished mid-run: nothing to clean up
     }
-    const categories = [
-      ...new Set(
-        parsed.categories
-          .filter((category): category is string =>
-            typeof category === "string"
-          )
-          .map((category) => sanitizeCategoryPath(category).join("/"))
-          .filter((category) => category !== ""),
-      ),
-    ].sort();
-    return {
-      manifest: parsed as CategoryManifest,
-      categories,
-    };
-  } catch {
-    return { categories: [] };
-  }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      if (segments.length === 0 && entry.name === rootDir) continue;
+      if (!entry.isDirectory()) continue;
+      // Symlinked dirs are never managed folders; walking them could escape
+      // the issues directory entirely.
+      if (entry.isSymbolicLink()) continue;
+      const name = sanitizeName(entry.name);
+      if (name === "") continue;
+      const child = [...segments, name];
+      categories.add(child.join("/"));
+      await walk(child);
+    }
+  };
+  await walk([]);
+  return [...categories].sort();
 }
 
 async function isDirectory(path: string): Promise<boolean> {

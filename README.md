@@ -99,12 +99,12 @@ deno task ok               # deno fmt && deno lint && deno check
 
 ### Files on disk
 
-| Path                        | What it is                                                                                                              |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `.jira/issues/all/<KEY>.md` | One markdown file per issue (regenerated, safe to delete)                                                               |
-| `.jira/issues/<category>/…` | Symlinks into `all/`, e.g. `status/Done/<KEY>-<summary>.md` (managed folders listed in `.jira/issues/.categories.json`) |
-| `.jira/.state.json`         | Incremental watermark + timezone + project (delete it to force a full sync)                                             |
-| `.env`                      | Credentials and defaults (not committed)                                                                                |
+| Path                        | What it is                                                                                                                        |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `.jira/issues/all/<KEY>.md` | One markdown file per issue (regenerated, safe to delete)                                                                         |
+| `.jira/issues/<category>/…` | Symlinks into `all/`, e.g. `status/Done/`, `assignee/`, `label/` or `parent/<KEY>/…` (every folder here except `all/` is managed) |
+| `.jira/.state.json`         | Incremental watermark + timezone + project (delete it to force a full sync)                                                       |
+| `.env`                      | Credentials and defaults (not committed)                                                                                          |
 
 ## Semantics and caveats
 
@@ -138,7 +138,7 @@ Source lives in `src/`:
 | `adf-to-markdown.ts` | Atlassian Document Format → markdown converter                                                      |
 | `sync.ts`            | Per-issue create/update/unchanged decisions, pruning, progress lines                                |
 | `categorize.ts`      | The single `categorizeIssue` function: front matter + body → category strings (`/` nests folders)   |
-| `categories.ts`      | Reconciles those categories into symlink folders next to `all/` (manifest: `.categories.json`)      |
+| `categories.ts`      | Reconciles those categories into symlink folders next to `all/`                                     |
 | `state.ts`           | Incremental watermark load/save                                                                     |
 | `util.ts`            | Small shared helpers (progress logging, pool)                                                       |
 
