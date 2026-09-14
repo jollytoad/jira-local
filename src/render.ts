@@ -16,12 +16,29 @@ export interface JiraComment {
   body?: AdfNode | string | null;
 }
 
+export interface JiraIssueRef {
+  key?: string;
+  fields?: {
+    summary?: string;
+    issuetype?: { name?: string; subtask?: boolean } | null;
+  } | null;
+}
+
+export interface JiraIssueLink {
+  type?: { name?: string; inward?: string; outward?: string } | null;
+  inwardIssue?: JiraIssueRef;
+  outwardIssue?: JiraIssueRef;
+}
+
 export interface JiraIssue {
   key: string;
   fields: {
     summary: string;
     status?: { name?: string; statusCategory?: { name?: string } } | null;
     issuetype?: { name?: string } | null;
+    parent?: JiraIssueRef | null;
+    subtasks?: JiraIssueRef[];
+    issuelinks?: JiraIssueLink[];
     priority?: { name?: string } | null;
     assignee?: JiraUserRef | null;
     reporter?: JiraUserRef | null;
@@ -52,6 +69,9 @@ const FRONT_MATTER_ORDER = [
   "assignee",
   "reporter",
   "labels",
+  "parent",
+  "children",
+  "linked",
   "created",
   "updated",
   "url",
@@ -76,6 +96,13 @@ export function renderIssue(
     assignee: displayName(fields.assignee),
     reporter: displayName(fields.reporter),
     labels: fields.labels?.length ? fields.labels.join(", ") : "",
+    parent: fields.parent?.key ?? "",
+    children: refKeys(fields.subtasks ?? []),
+    linked: refKeys(
+      (fields.issuelinks ?? []).map((link) =>
+        link.inwardIssue ?? link.outwardIssue
+      ),
+    ),
     created: isoDate(fields.created),
     updated: isoDate(fields.updated),
     url: `${siteUrl}/browse/${issue.key}`,
@@ -111,6 +138,19 @@ export function renderIssue(
   return {
     markdown: sections.join("\n\n").replace(/\s+$/, "") + "\n",
   };
+}
+
+/**
+ * Issue keys of an embedded-ref list (subtasks, link ends), de-duplicated and
+ * in order — rendered as a comma-separated front-matter value, like labels.
+ */
+function refKeys(refs: ReadonlyArray<JiraIssueRef | null | undefined>): string {
+  const keys: string[] = [];
+  for (const ref of refs) {
+    const key = ref?.key;
+    if (key && !keys.includes(key)) keys.push(key);
+  }
+  return keys.join(", ");
 }
 
 function renderFrontMatter(values: Record<string, string>): string {
