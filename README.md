@@ -35,7 +35,7 @@ assignee: "Mark Gibson"
 reporter: "Jane Doe"
 labels: []
 parent: "EXAMPLE-42"
-children: ""
+children: []
 linked: ["EXAMPLE-99", "EXAMPLE-120"]
 created: "2026-01-05"
 updated: "2026-09-12"

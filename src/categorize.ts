@@ -9,17 +9,10 @@
  * `categories.ts` is generic.
  */
 
-import type { IssueFrontMatter } from "./types.ts";
-
-export interface CategorizeInput {
-  /** Parsed front-matter values of the issue file. */
-  frontMatter: IssueFrontMatter;
-  /** Raw markdown body (everything after the front matter). */
-  body: string;
-}
+import type { IssueFileContent } from "./types.ts";
 
 /** Determine the categories of a single issue. */
-export function categorizeIssue(input: CategorizeInput): string[] {
-  const status = input.frontMatter.status?.trim() || "Unknown";
+export function categorizeIssue(issue: IssueFileContent): string[] {
+  const status = issue.frontMatter.status?.trim() || "Unknown";
   return [`status/${status}`];
 }

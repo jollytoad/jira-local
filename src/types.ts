@@ -86,11 +86,18 @@ export interface IssueFrontMatter {
   reporter: string;
   labels: string[];
   parent: string;
-  children: string;
-  linked: string;
+  children: string[];
+  linked: string[];
   created: string;
   updated: string;
   url: string;
+}
+
+/** The parsed content of an issue file: typed front matter plus raw body. */
+export interface IssueFileContent {
+  frontMatter: IssueFrontMatter;
+  /** Raw markdown body (everything after the front matter). */
+  body: string;
 }
 
 /** Jira Cloud credentials (basic auth). */

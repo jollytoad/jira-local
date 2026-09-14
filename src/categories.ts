@@ -33,7 +33,11 @@ import {
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import type { Dirent } from "node:fs";
 import { categorizeIssue } from "./categorize.ts";
-import type { IssueFrontMatter, LocalIssueFile } from "./types.ts";
+import type {
+  IssueFileContent,
+  IssueFrontMatter,
+  LocalIssueFile,
+} from "./types.ts";
 import { progress } from "./util.ts";
 
 export interface CategoryCounters {
@@ -227,12 +231,12 @@ function buildDesired(
   const categories = new Set<string>();
   for (const files of local.values()) {
     for (const file of files) {
-      const { frontMatter, body } = parseIssueFile(file.content);
-      for (const raw of categorizeIssue({ frontMatter, body })) {
+      const issue = parseIssueFile(file.content);
+      for (const raw of categorizeIssue(issue)) {
         const segments = sanitizeCategoryPath(raw);
         if (segments.length === 0) continue;
         const category = segments.join("/");
-        const summary = sanitizeName(frontMatter.summary);
+        const summary = sanitizeName(issue.frontMatter.summary);
         const base = summary
           ? `${file.key}-${summary.slice(0, MAX_SUMMARY_LENGTH)}.md`
           : `${file.key}.md`;
@@ -259,14 +263,12 @@ function buildDesired(
 }
 
 /**
- * Parse an issue file into its front matter and the raw markdown body.
+ * Parse an issue file into its typed content (front matter + raw body).
  * Values are coerced to the `IssueFrontMatter` shape; unknown or malformed
  * front matter degrades to defaults, with the whole content as body, so
  * categorisation never crashes a sync.
  */
-function parseIssueFile(
-  content: string,
-): { frontMatter: IssueFrontMatter; body: string } {
+function parseIssueFile(content: string): IssueFileContent {
   try {
     if (!test(content)) {
       return { frontMatter: emptyFrontMatter(), body: content };
@@ -289,8 +291,8 @@ function emptyFrontMatter(): IssueFrontMatter {
     reporter: "",
     labels: [],
     parent: "",
-    children: "",
-    linked: "",
+    children: [],
+    linked: [],
     created: "",
     updated: "",
     url: "",
@@ -305,7 +307,12 @@ function coerceFrontMatter(attrs: Record<string, unknown>): IssueFrontMatter {
     if (value === null || value === undefined) return "";
     return String(value);
   };
-  const labels = attrs.labels;
+  const arrayOf = (key: string): string[] => {
+    const value = attrs[key];
+    if (Array.isArray(value)) return value.map((item) => String(item));
+    if (value === null || value === undefined) return [];
+    return [String(value)];
+  };
   return {
     ...emptyFrontMatter(),
     key: stringOf("key"),
@@ -315,14 +322,10 @@ function coerceFrontMatter(attrs: Record<string, unknown>): IssueFrontMatter {
     priority: stringOf("priority"),
     assignee: stringOf("assignee"),
     reporter: stringOf("reporter"),
-    labels: Array.isArray(labels)
-      ? labels.map((label) => String(label))
-      : labels === null || labels === undefined
-      ? []
-      : [String(labels)],
+    labels: arrayOf("labels"),
     parent: stringOf("parent"),
-    children: stringOf("children"),
-    linked: stringOf("linked"),
+    children: arrayOf("children"),
+    linked: arrayOf("linked"),
     created: stringOf("created"),
     updated: stringOf("updated"),
     url: stringOf("url"),
