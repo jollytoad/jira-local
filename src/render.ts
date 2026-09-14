@@ -20,12 +20,14 @@ export function jiraIssueToContent(
 ): IssueFileContent {
   const fields = issue.fields;
   const status = fields.status?.name ?? "Unknown";
+  const statusCategory = fields.status?.statusCategory?.name ?? "";
   const summary = fields.summary ?? "";
 
   const frontMatter: IssueFrontMatter = {
     key: issue.key,
     summary,
     status,
+    statusCategory,
     type: fields.issuetype?.name ?? "",
     priority: fields.priority?.name ?? "",
     assignee: displayName(fields.assignee),

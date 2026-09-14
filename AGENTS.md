@@ -38,7 +38,8 @@ deno task categorize        # re-categorise only (offline; sync also does this)
   `categories.ts` reconciles it into symlink folders next to `all/`
   (`.jira/issues/status/<status>/<KEY>-<summary>.md` plus `assignee/`, `label/`
   (one folder per label, `/` in a label nests) and `parent/<key>` when the issue
-  has one; unassigned issues go to `assignee/Unassigned`). Every non-hidden
+  has one; unassigned issues go to `assignee/Unassigned`; issues with status
+  category "Done" are status-only and appear nowhere else). Every non-hidden
   directory under `.jira/issues/` other than `all/` is treated as managed, so
   stale folders are cleaned up automatically. Runs on every sync and via
   `deno task categorize` (offline).

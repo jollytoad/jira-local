@@ -99,12 +99,12 @@ deno task ok               # deno fmt && deno lint && deno check
 
 ### Files on disk
 
-| Path                        | What it is                                                                                                                        |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `.jira/issues/all/<KEY>.md` | One markdown file per issue (regenerated, safe to delete)                                                                         |
-| `.jira/issues/<category>/…` | Symlinks into `all/`, e.g. `status/Done/`, `assignee/`, `label/` or `parent/<KEY>/…` (every folder here except `all/` is managed) |
-| `.jira/.state.json`         | Incremental watermark + timezone + project (delete it to force a full sync)                                                       |
-| `.env`                      | Credentials and defaults (not committed)                                                                                          |
+| Path                        | What it is                                                                                                                                                     |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.jira/issues/all/<KEY>.md` | One markdown file per issue (regenerated, safe to delete)                                                                                                      |
+| `.jira/issues/<category>/…` | Symlinks into `all/`, e.g. `status/Done/`, `assignee/`, `label/` or `parent/<KEY>/…` (every folder here except `all/` is managed; done issues are status-only) |
+| `.jira/.state.json`         | Incremental watermark + timezone + project (delete it to force a full sync)                                                                                    |
+| `.env`                      | Credentials and defaults (not committed)                                                                                                                       |
 
 ## Semantics and caveats
 

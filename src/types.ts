@@ -80,6 +80,7 @@ export interface IssueFrontMatter {
   key: string;
   summary: string;
   status: string;
+  statusCategory: string;
   type: string;
   priority: string;
   assignee: string;
