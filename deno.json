@@ -1,0 +1,7 @@
+{
+  "tasks": {
+    "sync": "deno run --allow-net --allow-read --allow-write=.jira --allow-env --env-file src/main.ts",
+    "ok": "deno fmt && deno lint && deno check"
+  },
+  "nodeModulesDir": "none"
+}
