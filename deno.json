@@ -1,6 +1,10 @@
 {
+  "imports": {
+    "@std/front-matter": "jsr:@std/front-matter@^1.0.9"
+  },
   "tasks": {
-    "sync": "deno run --allow-net --allow-read --allow-write=.jira --allow-env --env-file src/main.ts",
+    "sync": "deno run --allow-net --allow-read --allow-write --allow-env --env-file src/main.ts",
+    "categorize": "deno run --allow-read --allow-write --allow-env --env-file src/main.ts categorize",
     "ok": "deno fmt && deno lint && deno check"
   },
   "compilerOptions": {

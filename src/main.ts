@@ -10,6 +10,7 @@
  */
 
 import { parseCli } from "./cli.ts";
+import { reconcileCategories } from "./categories.ts";
 import { env } from "./env.ts";
 import {
   JiraApiError,
@@ -39,6 +40,11 @@ async function run(args: readonly string[]): Promise<void> {
   const cli = parseCli(args);
   const cwd = Deno.cwd();
   const outDir = resolve(cwd, cli.out);
+
+  if (cli.mode === "categorize") {
+    await runCategorize(outDir, cli.dryRun);
+    return;
+  }
 
   const email = cli.email ?? readEnv("JIRA_EMAIL");
   const token = readEnv("JIRA_API_TOKEN", cli.token);
@@ -147,6 +153,9 @@ async function run(args: readonly string[]): Promise<void> {
     await pruneDeleted(local, seenKeys, outDir, cli.dryRun, counters);
   }
 
+  // Refresh category folders (cheap: re-categorises everything in `all/`).
+  const categories = await reconcileCategories(local, outDir, cli.dryRun);
+
   const next: SyncState = {
     maxUpdated: truncateToMinute(maxUpdated ?? previous?.maxUpdated ?? ""),
     timeZone,
@@ -162,6 +171,8 @@ async function run(args: readonly string[]): Promise<void> {
     `${counters.updated} updated`,
     `${counters.deleted} deleted`,
     `${counters.unchanged} unchanged`,
+    `${categories.linksCreated + categories.linksRetargeted} links changed`,
+    `${categories.linksRemoved} links removed`,
   ];
   console.log(
     `Synced ${pluralise(issueCount, "issue", "issues")} — ${
@@ -169,6 +180,33 @@ async function run(args: readonly string[]): Promise<void> {
     } in ${elapsed(started)}${
       incremental ? ` (incremental since ${updatedSince})` : " (full)"
     }${cli.dryRun ? " — dry run: no changes written" : ""}.`,
+  );
+}
+
+/**
+ * Standalone re-categorisation: refresh the category folders of symlinks
+ * from the files already present in `all/`. No network, no credentials, no
+ * state file — a purely local reconcile.
+ */
+async function runCategorize(outDir: string, dryRun: boolean): Promise<void> {
+  const started = Date.now();
+  console.log(
+    `Re-categorising issues in ${outDir}${dryRun ? " (dry-run)" : ""}...`,
+  );
+  const local = await scanLocal(outDir, "*");
+  const counters = await reconcileCategories(local, outDir, dryRun);
+  const parts = [
+    `${counters.linksCreated} created`,
+    `${counters.linksRetargeted} retargeted`,
+    `${counters.linksRemoved} removed`,
+    `${counters.linksUnchanged} unchanged`,
+    `${counters.dirsCreated} folders created`,
+    `${counters.dirsRemoved} folders removed`,
+  ];
+  console.log(
+    `Categorised ${pluralise(local.size, "issue", "issues")} — ${
+      parts.join(", ")
+    } in ${elapsed(started)}${dryRun ? " — dry run: no changes written" : ""}.`,
   );
 }
 

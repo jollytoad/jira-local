@@ -41,7 +41,7 @@ export async function scanLocal(
   projectKey: string,
 ): Promise<Map<string, LocalIssueFile[]>> {
   const local = new Map<string, LocalIssueFile[]>();
-  const prefix = `${projectKey.toLowerCase()}-`;
+  const prefix = projectKey === "*" ? "" : `${projectKey.toLowerCase()}-`;
   let files: Dirent[];
   try {
     files = await readdir(outDir, { withFileTypes: true });
@@ -94,13 +94,16 @@ export async function syncIssue(
     await writeFile(absPath, issue.markdown);
   }
   bump(counters, action);
-  progress(
-    `${action.padEnd(9)} ${relPath}${
-      total !== undefined
-        ? ` [${counters.created + counters.updated}/${total}]`
-        : ""
-    }`,
-  );
+  // Unchanged issues stay silent: only report actual work.
+  if (action !== "unchanged") {
+    progress(
+      `${action.padEnd(9)} ${relPath}${
+        total !== undefined
+          ? ` [${counters.created + counters.updated}/${total}]`
+          : ""
+      }`,
+    );
+  }
   return action;
 }
 

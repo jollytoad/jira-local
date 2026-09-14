@@ -75,13 +75,11 @@ All of these can be overridden with `--email`/`--token`/`--site`/`--project`.
 
 ```sh
 deno task sync             # incremental sync (first run is full)
-deno task sync -- --full   # full sync; also the only mode that prunes
-deno task sync -- --dry-run
+deno task sync --full      # full sync; also the only mode that prunes
+deno task sync --dry-run
+deno task categorize       # re-categorise only (offline; sync also does this)
 deno task ok               # deno fmt && deno lint && deno check
 ```
-
-(All flags after `--` are passed through to the tool. `deno task` stops parsing
-its own flags at `--`.)
 
 ### Options
 
@@ -98,11 +96,12 @@ its own flags at `--`.)
 
 ### Files on disk
 
-| Path                        | What it is                                                                  |
-| --------------------------- | --------------------------------------------------------------------------- |
-| `.jira/issues/all/<KEY>.md` | One markdown file per issue (regenerated, safe to delete)                   |
-| `.jira/.state.json`         | Incremental watermark + timezone + project (delete it to force a full sync) |
-| `.env`                      | Credentials and defaults (not committed)                                    |
+| Path                        | What it is                                                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `.jira/issues/all/<KEY>.md` | One markdown file per issue (regenerated, safe to delete)                                                               |
+| `.jira/issues/<category>/…` | Symlinks into `all/`, e.g. `status/Done/<KEY>-<summary>.md` (managed folders listed in `.jira/issues/.categories.json`) |
+| `.jira/.state.json`         | Incremental watermark + timezone + project (delete it to force a full sync)                                             |
+| `.env`                      | Credentials and defaults (not committed)                                                                                |
 
 ## Semantics and caveats
 
@@ -135,10 +134,14 @@ Source lives in `src/`:
 | `render.ts`          | Issue → markdown (front matter, description, comments)                                              |
 | `adf-to-markdown.ts` | Atlassian Document Format → markdown converter                                                      |
 | `sync.ts`            | Per-issue create/update/unchanged decisions, pruning, progress lines                                |
+| `categorize.ts`      | The single `categorizeIssue` function: front matter + body → category strings (`/` nests folders)   |
+| `categories.ts`      | Reconciles those categories into symlink folders next to `all/` (manifest: `.categories.json`)      |
 | `state.ts`           | Incremental watermark load/save                                                                     |
 | `util.ts`            | Small shared helpers (progress logging, YAML quoting, pool)                                         |
 
-Run checks with `deno task ok` (fmt, lint, type-check). No dependencies.
+Run checks with `deno task ok` (fmt, lint, type-check). Runtime dependency:
+[`@std/front-matter`](https://jsr.io/@std/front-matter) (issue front-matter
+parsing), pinned by `deno.lock`.
 
 ## Troubleshooting
 

@@ -1,6 +1,7 @@
 import { env } from "./env.ts";
 
 export interface CliOptions {
+  mode: "sync" | "categorize";
   site?: string;
   project?: string;
   out: string;
@@ -19,6 +20,7 @@ export interface ResolvedCliOptions extends CliOptions {
 
 export function parseCli(args: readonly string[]): ResolvedCliOptions {
   const options: Partial<CliOptions> = {};
+  let mode: "sync" | "categorize" = "sync";
   const stringFlags = new Set([
     "--site",
     "--project",
@@ -41,9 +43,6 @@ export function parseCli(args: readonly string[]): ResolvedCliOptions {
       printHelp();
       Deno.exit(0);
     }
-    if (arg === "--") {
-      break;
-    }
     if (booleanFlags.has(arg)) {
       if (arg === "--dry-run") options.dryRun = true;
       else if (arg === "--allow-empty") options.allowEmpty = true;
@@ -52,6 +51,14 @@ export function parseCli(args: readonly string[]): ResolvedCliOptions {
       continue;
     }
     if (!stringFlags.has(arg)) {
+      if (arg === "categorize") {
+        if (mode !== "sync") {
+          console.error(`error: "${arg}" given more than once`);
+          Deno.exit(1);
+        }
+        mode = "categorize";
+        continue;
+      }
       console.error(`error: unknown option "${arg}"`);
       console.error("run with '--help' for usage");
       Deno.exit(1);
@@ -95,6 +102,7 @@ export function parseCli(args: readonly string[]): ResolvedCliOptions {
   }
 
   return {
+    mode,
     site: site.replace(/\/+$/, ""),
     project,
     out: options.out ?? ".jira/issues/all",
@@ -108,11 +116,14 @@ export function parseCli(args: readonly string[]): ResolvedCliOptions {
 }
 
 function printHelp(): void {
-  console.log(`Usage: jira-local [options]
+  console.log(`Usage: jira-local [categorize] [options]
 
-Syncs Jira issues into a flat folder of <KEY>.md files.
+With no subcommand, syncs Jira issues into a flat folder of <KEY>.md files.
+With the "categorize" subcommand, no Jira fetch takes place: the local files
+are re-categorised, refreshing the category folders of symlinks.
 
 Options:
+  categorize         Re-categorise only (no Jira fetch, no credentials needed)
   --site <url>       Jira Cloud base URL (or set JIRA_SITE)
   --project <key>    Project key (or set JIRA_PROJECT)
   --out <dir>        Output directory, relative to the project root (default: .jira/issues/all)
@@ -130,7 +141,7 @@ Options:
 Credentials come from JIRA_EMAIL + JIRA_API_TOKEN env vars unless overridden by
 flags. JIRA_API_TOKEN may alternatively be the combined "email:api-token" value.
 The Jira site URL and project key come from JIRA_SITE and JIRA_PROJECT unless
-overridden by flags.
+overridden by flags. (Not needed with "categorize", which works offline.)
 
 Requires network (fetch), read, write and env permissions:
   deno run --allow-net --allow-read --allow-write --allow-env src/main.ts`);
