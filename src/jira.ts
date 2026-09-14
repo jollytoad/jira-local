@@ -228,7 +228,10 @@ export async function* streamIssues(
           comments = await fetchAllComments(creds, issue.key);
           fallbackFetched = true;
         }
-        const result = renderIssue(issue, creds.site, { comments });
+        // Merge the complete comment list into the issue so rendering sees
+        // one uniform shape.
+        issue.fields.comment = { total: comments.length, comments };
+        const result = renderIssue(issue, creds.site);
         renderedTotal++;
         if (fallbackFetched) fallbackCount++;
         if (renderedTotal % 25 === 0) {

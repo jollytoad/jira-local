@@ -3,7 +3,6 @@ import { adfToMarkdown } from "./adf-to-markdown.ts";
 import type {
   IssueFileContent,
   IssueFrontMatter,
-  JiraComment,
   JiraIssue,
   JiraIssueRef,
 } from "./types.ts";
@@ -14,17 +13,10 @@ export interface RenderedIssue {
   markdown: string;
 }
 
-/** Options for building an issue file's content from Jira data. */
-export interface RenderIssueOptions {
-  /** Comments to embed in the body (already complete/fetched). */
-  comments?: JiraComment[];
-}
-
 /** Convert a Jira issue into its parsed file representation. */
 export function jiraIssueToContent(
   issue: JiraIssue,
   siteUrl: string,
-  options: RenderIssueOptions = {},
 ): IssueFileContent {
   const fields = issue.fields;
   const status = fields.status?.name ?? "Unknown";
@@ -51,7 +43,7 @@ export function jiraIssueToContent(
     url: `${siteUrl}/browse/${issue.key}`,
   };
 
-  const comments = options.comments ?? [];
+  const comments = issue.fields.comment?.comments ?? [];
   const description = adfToMarkdown(fields.description);
   const renderedComments = comments
     .map((comment, index) => {
@@ -97,9 +89,8 @@ export function renderIssueFile(content: IssueFileContent): string {
 export function renderIssue(
   issue: JiraIssue,
   siteUrl: string,
-  options: { comments?: JiraComment[] } = {},
 ): RenderedIssue {
-  const content = jiraIssueToContent(issue, siteUrl, options);
+  const content = jiraIssueToContent(issue, siteUrl);
   return { markdown: renderIssueFile(content) };
 }
 
