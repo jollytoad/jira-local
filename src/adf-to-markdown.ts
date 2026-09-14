@@ -12,6 +12,8 @@ interface InlineOptions {
   inListItem?: boolean;
   inTable?: boolean;
   inQuote?: boolean;
+  /** Depth of nested task lists; used to indent sibling sub-lists. */
+  taskDepth?: number;
 }
 
 /** Render an ADF document (or node) to markdown. */
@@ -33,6 +35,8 @@ function renderBlock(
   tight: boolean,
 ): string {
   switch (node.type) {
+    case "text":
+      return applyMarks(node.text ?? "", node.marks ?? []);
     case "paragraph":
       return renderInline(node.content ?? [], opts);
     case "heading": {
@@ -55,11 +59,29 @@ function renderBlock(
         .split("\n")
         .map((line) => `> ${line}`)
         .join("\n");
-    case "panel":
-      return (node.content ?? [])
-        .map((child) => renderBlock(child, opts, false))
+    case "panel": {
+      const icons: Record<string, string> = {
+        info: "ℹ️",
+        note: "📝",
+        tip: "💡",
+        warning: "⚠️",
+        error: "❌",
+        success: "✅",
+      };
+      const type = typeof node.attrs?.["panelType"] === "string"
+        ? node.attrs["panelType"]
+        : "";
+      const icon = icons[type] ?? "ℹ️";
+      const body = (node.content ?? [])
+        .map((child) => renderBlock(child, { ...opts, inQuote: true }, false))
         .filter((part) => part !== "")
-        .join("\n\n");
+        .join("\n\n")
+        .split("\n")
+        .map((line) => (line.startsWith("> ") ? line : `> ${line}`))
+        .join("\n");
+      // body lines are already quote-prefixed; the icon joins the first line.
+      return body.replace(/^> /, `> ${icon} `);
+    }
     case "expand":
     case "nestedExpand": {
       const title = typeof node.attrs?.["title"] === "string"
@@ -80,24 +102,66 @@ function renderBlock(
     case "table":
       return renderTable(node, opts);
     case "taskList":
-      return (node.content ?? [])
-        .map((child) => renderBlock(child, opts, tight))
+    case "decisionList": {
+      // A taskList may directly contain nested taskLists (sibling of the
+      // items, per the ADF schema). A nested list renders with every line
+      // indented by its depth; plain lists stay flush.
+      const depth = opts.taskDepth ?? 0;
+      const body = (node.content ?? [])
+        .map((child) =>
+          renderBlock(
+            child,
+            child.type === "taskList"
+              ? { ...opts, taskDepth: depth + 1 }
+              : opts,
+            tight,
+          )
+        )
         .filter((part) => part !== "")
         .join("\n");
+      if (depth === 0) return body;
+      return body
+        .split("\n")
+        .map((line) => (line ? `  ${line}` : line))
+        .join("\n");
+    }
     case "taskItem": {
       const done = node.attrs?.["state"] === "DONE";
+      const label = (node.content ?? [])
+        .filter((child) => child.type !== "taskList")
+        .map((child) => renderBlock(child, { ...opts, inListItem: true }, true))
+        .join(" ")
+        .trim();
+      // Nested task lists render as tail lines under the item, indented.
+      const nested = (node.content ?? [])
+        .filter((child) => child.type === "taskList")
+        .map((child) => renderNestedBlock(child, opts))
+        .filter((part) => part !== "")
+        .join("\n\n");
+      const nestedIndent = nested
+        .split("\n")
+        .map((line) => `  ${line}`)
+        .join("\n");
+      return `- [${done ? "x" : " "}]${label ? ` ${label}` : ""}${
+        nested ? `\n${nestedIndent}` : ""
+      }`;
+    }
+    case "decisionItem": {
+      const done = node.attrs?.["state"] === "DECIDED";
       const text = (node.content ?? [])
         .map((child) => renderBlock(child, { ...opts, inListItem: true }, true))
         .join(" ")
         .trim();
-      return `- [${done ? "x" : " "}] ${text}`;
+      return `- [${done ? "x" : " "}]${text ? ` ${text}` : ""}`;
     }
     case "emoji": {
+      const text = typeof node.attrs?.["text"] === "string"
+        ? node.attrs["text"]
+        : "";
       const short = typeof node.attrs?.["shortName"] === "string"
         ? node.attrs["shortName"]
         : "";
-      const fallback = typeof node.text === "string" ? node.text : "";
-      return short || fallback || ":emoji:";
+      return text || short || ":emoji:";
     }
     case "mention":
       return typeof node.attrs?.["text"] === "string"
@@ -120,6 +184,20 @@ function renderBlock(
     }
     case "hardBreak":
       return "<br />";
+    case "inlineCard":
+    case "blockCard":
+    case "embedCard": {
+      const url = typeof node.attrs?.["url"] === "string"
+        ? node.attrs["url"]
+        : "";
+      if (!url) {
+        const data = typeof node.attrs?.["data"] === "string"
+          ? node.attrs["data"]
+          : "";
+        return data ? `[${data}]` : "";
+      }
+      return `[${url}](${url})`;
+    }
     default:
       return (node.content ?? [])
         .map((child) => renderBlock(child, opts, tight))
@@ -196,21 +274,60 @@ function applyMarks(text: string, marks: AdfMark[]): string {
 function renderMediaBlock(node: AdfNode): string {
   switch (node.type) {
     case "media": {
-      const id = typeof node.attrs?.["id"] === "string" ? node.attrs["id"] : "";
-      const name = typeof node.attrs?.["alt"] === "string"
+      const alt = typeof node.attrs?.["alt"] === "string"
         ? node.attrs["alt"]
         : "";
-      return id ? `[attachment: ${name || id}]` : "";
+      // External media carries a URL; Atlassian-hosted media carries an id.
+      const url = typeof node.attrs?.["url"] === "string"
+        ? node.attrs["url"]
+        : "";
+      if (url) return alt ? `![${alt}](${url})` : `![media](${url})`;
+      const id = typeof node.attrs?.["id"] === "string" ? node.attrs["id"] : "";
+      return id ? `[attachment: ${alt || id}]` : "";
     }
-    case "mediaGroup":
-    case "mediaSingle":
-      return (node.content ?? [])
-        .map((child) => renderMediaBlock(child))
+    case "caption": {
+      const text = (node.content ?? [])
+        .map((child) => renderBlock(child, { inTable: false }, true))
         .filter((part) => part !== "")
-        .join("\n\n");
+        .join(" ")
+        .trim();
+      return text ? `_${text}_` : "";
+    }
+    case "mediaGroup": {
+      const parts = (node.content ?? [])
+        .map((child) => renderMediaBlock(child))
+        .filter((part) => part !== "");
+      return parts.join("\n\n");
+    }
+    case "mediaSingle": {
+      // mediaSingle carries [media] or [media, caption?]; join the caption
+      // to its media on one line.
+      const parts = (node.content ?? [])
+        .map((child) =>
+          child.type === "caption"
+            ? renderCaption(child)
+            : renderMediaBlock(child)
+        )
+        .filter((part) => part !== "");
+      if (parts.length > 1) {
+        const [media, ...captions] = parts;
+        return [media, ...captions].join(" ");
+      }
+      return parts.join("\n\n");
+    }
     default:
       return "";
   }
+}
+
+/** Caption content renders as an italic continuation of its media line. */
+function renderCaption(node: AdfNode): string {
+  const text = (node.content ?? [])
+    .map((child) => renderBlock(child, { inTable: false }, true))
+    .filter((part) => part !== "")
+    .join(" ")
+    .trim();
+  return text ? `_${text}_` : "";
 }
 
 function renderList(
@@ -263,21 +380,27 @@ function renderCodeBlock(node: AdfNode): string {
 }
 
 function renderTable(table: AdfNode, opts: InlineOptions): string {
-  const rows: string[][] = [];
-  for (const row of table.content ?? []) {
-    if (row.type !== "tableRow") continue;
-    const cells = (row.content ?? []).map((cell) =>
+  const tableRows = (table.content ?? []).filter((row) =>
+    row.type === "tableRow"
+  );
+  if (tableRows.length === 0) return "";
+  // ADF tables do not require a header row; without one, emit an empty
+  // header so the first data row is not swallowed by the separator.
+  const hasHeader = (tableRows[0]?.content ?? []).some((cell) =>
+    cell.type === "tableHeader"
+  );
+  const bodyRows = hasHeader ? tableRows : [undefined, ...tableRows];
+  const rows = bodyRows.map((row) =>
+    (row?.content ?? []).map((cell) =>
       (cell.content ?? [])
         .map((child) => renderBlock(child, { ...opts, inTable: true }, true))
         .filter((part) => part !== "")
-        .join("\n<br>".trim())
+        .join("\n")
         .replace(/\|/g, "\\|")
         .replace(/\n/g, "<br>")
         .trim()
-    );
-    if (cells.length) rows.push(cells);
-  }
-  if (!rows.length) return "";
+    )
+  );
   const width = Math.max(...rows.map((cells) => cells.length));
   const normalised = rows.map((cells) => {
     const copy = [...cells];
