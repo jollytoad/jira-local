@@ -296,6 +296,7 @@ function renderTable(table: AdfNode, opts: InlineOptions): string {
     return copy;
   });
   const [head, ...body] = normalised;
+  if (!head) return "";
   const lines = [
     `| ${head.join(" | ")} |`,
     `| ${head.map(() => "---").join(" | ")} |`,
@@ -329,7 +330,7 @@ function mergeAdjacent(parts: string[]): string {
     if (out !== "") out += " ";
     out += part;
     const codeMatch = /(`+)$/.exec(part);
-    trailingBackticks = codeMatch ? codeMatch[1].length : 0;
+    trailingBackticks = codeMatch?.[1]?.length ?? 0;
   }
   return out;
 }

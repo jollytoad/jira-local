@@ -129,6 +129,8 @@ Source lives in `src/`:
 | -------------------- | --------------------------------------------------------------------------------------------------- |
 | `main.ts`            | CLI entry: credentials, preflight, stream → sync loop, state, summary                               |
 | `cli.ts`             | Argument parsing + help                                                                             |
+| `env.ts`             | Env-var helper (empty/whitespace counts as unset)                                                   |
+| `errors.ts`          | Error types shared by the client and CLI                                                            |
 | `jira.ts`            | Jira REST v3 client: search paging (with lookahead), comments, retries/429 backoff, incremental JQL |
 | `render.ts`          | Issue → markdown (front matter, description, comments)                                              |
 | `adf-to-markdown.ts` | Atlassian Document Format → markdown converter                                                      |

@@ -55,7 +55,9 @@ export async function pool<T, R>(
         while (true) {
           const index = next++;
           if (index >= items.length) return;
-          results[index] = await task(items[index], index);
+          const item = items[index];
+          if (item === undefined) return;
+          results[index] = await task(item, index);
         }
       })(),
   );

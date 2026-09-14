@@ -36,6 +36,7 @@ export function parseCli(args: readonly string[]): ResolvedCliOptions {
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
+    if (arg === undefined) break;
     if (arg === "--help") {
       printHelp();
       Deno.exit(0);

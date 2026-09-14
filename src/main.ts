@@ -14,12 +14,17 @@ import { env } from "./env.ts";
 import {
   JiraApiError,
   JiraAuthError,
-  JiraClient,
   JiraProjectError,
   JiraSearchMismatchError,
-} from "./jira.ts";
+} from "./errors.ts";
 import type { Credentials } from "./jira.ts";
-import { validateFetchResult } from "./jira.ts";
+import {
+  countIssues,
+  preflightAuth,
+  preflightProject,
+  streamIssues,
+  validateFetchResult,
+} from "./jira.ts";
 import {
   pruneDeleted,
   scanLocal,
@@ -59,7 +64,6 @@ async function run(args: readonly string[]): Promise<void> {
     email: resolvedEmail,
     token: resolvedToken,
   };
-  const client = new JiraClient(creds);
 
   const started = Date.now();
   console.log(
@@ -68,10 +72,10 @@ async function run(args: readonly string[]): Promise<void> {
     }...`,
   );
   progress("checking credentials...");
-  const { timeZone } = await client.preflightAuth();
+  const { timeZone } = await preflightAuth(creds);
   progress("credentials ok");
   progress(`checking project ${cli.project}...`);
-  await client.preflightProject(cli.project);
+  await preflightProject(creds, cli.project);
   progress("project ok");
 
   const stateFile = statePath(outDir);
@@ -108,9 +112,9 @@ async function run(args: readonly string[]): Promise<void> {
   let maxUpdated: string | undefined = previous?.maxUpdated;
 
   for await (
-    const issue of client.streamIssues(cli.project, {
+    const issue of streamIssues(creds, cli.project, {
       updatedSince,
-      sawUpdated: (updated) => {
+      sawUpdated: (updated: string) => {
         if (maxUpdated === undefined || updated > maxUpdated) {
           maxUpdated = updated;
         }
@@ -123,7 +127,7 @@ async function run(args: readonly string[]): Promise<void> {
   }
 
   if (issueCount === 0 && !incremental) {
-    const expected = await client.countIssues(cli.project);
+    const expected = await countIssues(creds, cli.project);
     const verdict = validateFetchResult(issueCount, expected, cli.allowEmpty);
     if (verdict === "refuse-empty") {
       console.error(
