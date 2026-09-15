@@ -19,7 +19,7 @@
  * folders are ever removed.
  *
  * Which folders and index pages are materialised is configured in
- * `.jira/config.ts` (see `config.ts`). The two are independent:
+ * `.jira/.config.ts` (see `config.ts`). The two are independent:
  *
  * - `categoryFolders` restricts the symlink folders (everything else becomes
  *   stale and is cleaned up).

@@ -69,7 +69,7 @@ export class RateLimitError extends Error {
   }
 }
 
-/** The user configuration file (`.jira/config.ts`) is missing or malformed. */
+/** The user configuration file (`.jira/.config.ts`) is missing or malformed. */
 export class ConfigError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);

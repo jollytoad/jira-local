@@ -4,7 +4,7 @@
  * `status/Backlog.md` listing that category's issues as a markdown table.
  *
  * Which folders get an index page, and with which columns, is configured in
- * `.jira/config.ts` (see `config.ts`): a map from top-level category folder
+ * `.jira/.config.ts` (see `config.ts`): a map from top-level category folder
  * to front-matter column names. `key` renders as a markdown link into the
  * flat `all/` store, any other column renders the raw front-matter value
  * (arrays joined with ", "). Rows are sorted by issue key. The columns here

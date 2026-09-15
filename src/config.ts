@@ -1,16 +1,16 @@
 /**
- * User configuration: `.jira/config.ts` (sibling of the issues folder), a
+ * User configuration: `.jira/.config.ts` (sibling of the issues folder), a
  * TypeScript module exporting a `config` object typed as `JiraLocalConfig`.
  *
  * Loaded lazily by `getConfig` and cached per resolved path for the lifetime
  * of the process, so callers that already know the issues folder can pull the
  * config themselves instead of it being threaded through parameters. A missing
  * config file is not an error: the defaults (no filtering) apply. A malformed
- * config — bad export, wrong shapes, folder names or columns that are not
- * front-matter field names — raises a `ConfigError` and aborts the run before
- * any writing happens. The two fields are independent: `categoryIndex` may
- * list folders that `categoryFolders` does not (index pages without symlink
- * folders).
+ * config — bad export, wrong shapes, connection fields that are not strings,
+ * folder names or columns that are not front-matter field names — raises a
+ * `ConfigError` and aborts the run before any writing happens. The two
+ * category fields are independent: `categoryIndex` may list folders that
+ * `categoryFolders` does not (index pages without symlink folders).
  */
 
 import { stat } from "node:fs/promises";
@@ -23,7 +23,7 @@ import type { FrontMatterKey, IndexColumn, JiraLocalConfig } from "./types.ts";
 /** Path of the config file, sibling of the issues folder (like the state file). */
 export function configPath(outDir: string): string {
   const grandParent = dirname(dirname(outDir)); // .jira, sibling of issues/
-  return join(grandParent, "config.ts");
+  return join(grandParent, ".config.ts");
 }
 
 /** Loaded configs, keyed by resolved config-file path. */
@@ -78,6 +78,11 @@ function validate(
   path: string,
 ): JiraLocalConfig {
   const label = where(path);
+
+  const site = stringField(raw, "site", label);
+  const project = stringField(raw, "project", label);
+  const email = stringField(raw, "email", label);
+  const token = stringField(raw, "token", label);
 
   let categoryFolders: readonly FrontMatterKey[] | undefined;
   if (raw.categoryFolders !== undefined) {
@@ -136,7 +141,23 @@ function validate(
     categoryIndex = entries;
   }
 
-  return { categoryFolders, categoryIndex };
+  return { site, project, email, token, categoryFolders, categoryIndex };
+}
+
+/** Read an optional string field, erroring on any other type. */
+function stringField(
+  raw: Record<string, unknown>,
+  name: string,
+  label: string,
+): string | undefined {
+  const value = raw[name];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new ConfigError(
+      `${label}: ${name} must be a non-empty string (got ${displayOf(value)})`,
+    );
+  }
+  return value;
 }
 
 /** Check whether a value is a front-matter field name (folder/column vocabulary). */

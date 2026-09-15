@@ -1,13 +1,15 @@
 /**
  * The `pull` command: fetch issues from Jira and mirror them into the local
  * output folder, then re-categorise. Contains its orchestration (`runPull`)
- * alongside the cliffy command definition.
+ * alongside the cliffy command definition. Connection settings (site,
+ * project, email, token) resolve with precedence flags > `.jira/.config.ts`.
  */
 
 import { Command, ValidationError } from "@cliffy/command";
 import { resolve } from "node:path";
 
 import { reconcileCategories } from "../categories.ts";
+import { getConfig } from "../config.ts";
 import {
   countIssues,
   preflightAuth,
@@ -17,12 +19,17 @@ import {
 } from "../jira.ts";
 import { pruneDeleted, pullIssue, scanLocal } from "../pull.ts";
 import { loadState, saveState, statePath } from "../state.ts";
-import type { Credentials, PullCounters, PullState } from "../types.ts";
+import type {
+  Credentials,
+  JiraLocalConfig,
+  PullCounters,
+  PullState,
+} from "../types.ts";
 import { elapsed, pluralise, progress } from "../util.ts";
 
 export interface PullOptions {
-  site: string;
-  project: string;
+  site?: string;
+  project?: string;
   out: string;
   dryRun: boolean;
   prune: boolean;
@@ -38,18 +45,11 @@ export function pullCommand() {
       "Pull Jira issues into a flat folder of <KEY>.md files and maintain\n" +
         "categorised views of symlinks.",
     )
-    .env("JIRA_SITE=<site:string>", "Jira Cloud base URL.", { prefix: "JIRA_" })
-    .env("JIRA_PROJECT=<project:string>", "Jira project key.", {
-      prefix: "JIRA_",
-    })
-    .env("JIRA_EMAIL=<email:string>", "Atlassian account email.", {
-      prefix: "JIRA_",
-    })
-    .env("JIRA_API_TOKEN=<api-token:string>", "Atlassian API token.", {
-      prefix: "JIRA_",
-    })
-    .option("--site <url:string>", "Jira Cloud base URL (or set JIRA_SITE).")
-    .option("--project <key:string>", "Project key (or set JIRA_PROJECT).")
+    .option(
+      "--site <url:string>",
+      "Jira Cloud base URL (beats .jira/.config.ts).",
+    )
+    .option("--project <key:string>", "Project key (beats .jira/.config.ts).")
     .option(
       "--out <dir:string>",
       "Output directory, relative to the project root.",
@@ -57,11 +57,11 @@ export function pullCommand() {
     )
     .option(
       "--email <email:string>",
-      "Atlassian account email (or set JIRA_EMAIL).",
+      "Atlassian account email (beats .jira/.config.ts).",
     )
     .option(
       "--token <secret:string>",
-      "Atlassian API token (or set JIRA_API_TOKEN).",
+      "Atlassian API token (beats .jira/.config.ts).",
     )
     .option("--dry-run", "Print the plan without writing anything.")
     .option(
@@ -78,26 +78,16 @@ export function pullCommand() {
         "mode that prunes issue files deleted in Jira).",
     )
     .action((options) => {
-      const site = options.site?.trim();
-      const project = options.project?.trim();
-      if (!site || !project) {
-        throw new ValidationError(
-          !site
-            ? "Jira site URL required — set JIRA_SITE, or pass --site"
-            : "project key required — set JIRA_PROJECT, or pass --project",
-          { exitCode: 1 },
-        );
-      }
       const cli: PullOptions = {
-        site: site.replace(/\/+$/, ""),
-        project,
+        site: options.site,
+        project: options.project,
         out: options.out,
         dryRun: options.dryRun ?? false,
         prune: options.prune ?? true,
         allowEmpty: options.allowEmpty ?? false,
         full: options.full ?? false,
         email: options.email,
-        token: options.apiToken ?? options.token,
+        token: options.token,
       };
       return runPull(cli);
     });
@@ -107,32 +97,51 @@ export async function runPull(cli: PullOptions): Promise<void> {
   const cwd = Deno.cwd();
   const outDir = resolve(cwd, cli.out);
 
-  const creds = resolveCredentials(cli);
+  const config = await getConfig(outDir);
+  const site = (cli.site ?? config.site ?? "").trim().replace(/\/+$/, "");
+  const project = (cli.project ?? config.project ?? "").trim();
+  if (!site || !project) {
+    throw new ValidationError(
+      !site
+        ? "Jira site URL required — set site in .jira/.config.ts, or pass --site"
+        : "project key required — set project in .jira/.config.ts, or pass --project",
+      { exitCode: 1 },
+    );
+  }
+  if (!URL.canParse(site)) {
+    throw new ValidationError(
+      `site must be a valid URL (got "${site}")`,
+      { exitCode: 1 },
+    );
+  }
+
+  const creds = resolveCredentials(cli, config);
   if (!creds) {
     throw new ValidationError(
-      "credentials required — set JIRA_EMAIL and JIRA_API_TOKEN, pass --email/--token, " +
-        'or set JIRA_API_TOKEN to "email:api-token"',
+      "credentials required — set email/token in .jira/.config.ts, pass --email/--token, " +
+        "or read them into the config from environment variables " +
+        '(e.g. token: Deno.env.get("JIRA_API_TOKEN"))',
       { exitCode: 1 },
     );
   }
 
   const started = Date.now();
   console.log(
-    `Pulling issues for ${cli.project} from ${cli.site}${
+    `Pulling issues for ${project} from ${site}${
       cli.dryRun ? " (dry-run)" : ""
     }...`,
   );
   progress("checking credentials...");
   const { timeZone } = await preflightAuth(creds);
   progress("credentials ok");
-  progress(`checking project ${cli.project}...`);
-  await preflightProject(creds, cli.project);
+  progress(`checking project ${project}...`);
+  await preflightProject(creds, project);
   progress("project ok");
 
   const stateFile = statePath(outDir);
   const previous = await loadState(stateFile);
   const incremental = !cli.full && previous !== undefined &&
-    previous.project === cli.project;
+    previous.project === project;
   const updatedSince = incremental
     ? overlapWindow(previous!.maxUpdated)
     : undefined;
@@ -149,7 +158,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
     progress("--full: running a full pull");
   }
 
-  const local = await scanLocal(outDir, cli.project);
+  const local = await scanLocal(outDir, project);
   const counters: PullCounters = {
     created: 0,
     updated: 0,
@@ -163,7 +172,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
   let maxUpdated: string | undefined = previous?.maxUpdated;
 
   for await (
-    const issue of streamIssues(creds, cli.project, {
+    const issue of streamIssues(creds, project, {
       updatedSince,
       sawUpdated: (updated: string) => {
         if (maxUpdated === undefined || updated > maxUpdated) {
@@ -178,11 +187,11 @@ export async function runPull(cli: PullOptions): Promise<void> {
   }
 
   if (issueCount === 0 && !incremental) {
-    const expected = await countIssues(creds, cli.project);
+    const expected = await countIssues(creds, project);
     const verdict = validateFetchResult(issueCount, expected, cli.allowEmpty);
     if (verdict === "refuse-empty") {
       throw new ValidationError(
-        `the project returned 0 issues. If ${cli.project} is genuinely empty, ` +
+        `the project returned 0 issues. If ${project} is genuinely empty, ` +
           "pass --allow-empty; otherwise this usually means an auth or visibility failure.",
         { exitCode: 1 },
       );
@@ -205,7 +214,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
     maxUpdated: truncateToMinute(maxUpdated ?? previous?.maxUpdated ?? ""),
     timeZone,
     lastRun: new Date().toISOString(),
-    project: cli.project,
+    project,
   };
   if (!cli.dryRun && next.maxUpdated) {
     await saveState(stateFile, next);
@@ -231,22 +240,17 @@ export async function runPull(cli: PullOptions): Promise<void> {
 }
 
 /**
- * Credentials and defaults come from flags or cliffy env vars; the combined
- * "email:token" form of JIRA_API_TOKEN is also supported. Empty/whitespace
- * values are treated as unset.
+ * Credentials come from flags, falling back to the config file; empty or
+ * whitespace-only values are treated as unset.
  */
-function resolveCredentials(cli: PullOptions): Credentials | undefined {
-  let email = cli.email?.trim() === "" ? undefined : cli.email?.trim();
-  let token = cli.token?.trim() === "" ? undefined : cli.token;
-
-  // Support the combined "email:token" form.
-  if (!email && token?.includes(":")) {
-    const idx = token.indexOf(":");
-    email = token.slice(0, idx);
-    token = token.slice(idx + 1);
-  }
+function resolveCredentials(
+  cli: PullOptions,
+  config: JiraLocalConfig,
+): Credentials | undefined {
+  const email = (cli.email ?? config.email ?? "").trim() || undefined;
+  const token = (cli.token ?? config.token ?? "").trim() || undefined;
   if (!email || !token) return undefined;
-  return { site: cli.site, email, token };
+  return { site: cli.site ?? config.site ?? "", email, token };
 }
 
 /**

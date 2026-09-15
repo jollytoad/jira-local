@@ -149,15 +149,27 @@ export interface PullState {
 }
 
 /**
- * User configuration loaded from `.jira/config.ts`. Every field is optional;
- * an omitted field means "current default behavior". Folder names are the
- * front-matter field names they are derived from ("status", "assignee",
- * "labels", "parent"); other front-matter keys are valid but inert (the
- * categoriser never produces a folder for them). The two fields are
- * independent: a folder can have index pages without materialised symlink
- * folders, and vice versa.
+ * User configuration loaded from `.jira/.config.ts`. Every field is optional;
+ * an omitted field means "current default behavior". The connection fields
+ * (`site`, `project`, `email`, `token`) are used by `pull` and ignored by
+ * `categorize`; flags beat config values. Since the config is a TypeScript
+ * module, it may read environment variables itself
+ * (`email: Deno.env.get("JIRA_EMAIL")`) — the tool never reads env vars
+ * directly. Folder names are the front-matter field names they are derived
+ * from ("status", "assignee", "labels", "parent"); other front-matter keys
+ * are valid but inert (the categoriser never produces a folder for them).
+ * The two category fields are independent: a folder can have index pages
+ * without materialised symlink folders, and vice versa.
  */
 export interface JiraLocalConfig {
+  /** Jira Cloud base URL (overrides nothing; beats nothing — flags win). */
+  site?: string;
+  /** Jira project key to pull. */
+  project?: string;
+  /** Atlassian account email (basic-auth username). */
+  email?: string;
+  /** Atlassian API token (basic-auth password). */
+  token?: string;
   /**
    * Top-level category folders to materialise as symlink folders (first
    * segment of a category string, e.g. "status" for "status/Done"). Omit to

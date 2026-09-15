@@ -29,19 +29,23 @@ deno task categorize        # re-categorise only (offline; pull also does this)
   its orchestration (`runPull`/`runCategorize`) next to its definition;
   `src/main.ts` is a thin entry that parses and maps runtime errors to exit
   codes.
-- Env fallbacks come from cliffy `.env()` with `prefix: "JIRA_"` (so
-  `JIRA_API_TOKEN` maps to `options.apiToken`, read as `--token`'s value); flags
-  beat env vars. Env vars are declared on the pull command only — categorize
-  needs no credentials. The old `.jira/.env` dotenv loader is gone — the root
-  `.env` is loaded by `--env-file` in the deno tasks (and not at all for a
-  compiled binary, which needs real env vars or flags).
+- Connection settings (site, project, email, token) resolve with precedence
+  flags > `.jira/.config.ts`. The tool never reads environment variables — the
+  config is a TS module, so the user opts into env access there
+  (`token: Deno.env.get("JIRA_API_TOKEN")`). Categorize needs no credentials.
+- The compiled binary reads no `.env` file; it gets values from `.config.ts`,
+  flags, or env vars the config reads itself.
 
 ## Files
 
-- `.env` (gitignored): `JIRA_EMAIL` + `JIRA_API_TOKEN` (Atlassian API token, not
-  password), plus `JIRA_SITE` + `JIRA_PROJECT` defaults, loaded via `--env-file`
-  in the deno tasks. No defaults are hardcoded — a missing
-  `JIRA_SITE`/`JIRA_PROJECT` is a hard error.
+- `.jira/.config.ts` (sibling of `issues/`, gitignored, `export const config`):
+  connection fields (`site`, `project`, `email`, `token` — used by pull, ignored
+  by categorize; validated as non-empty strings) plus the category fields below.
+  Loaded/validated by `config.ts`'s cached `getConfig`; missing file = defaults
+  (then missing site/project is a hard error).
+- `.env` (gitignored, optional): not read by the tool itself — the user's
+  `.config.ts` can pull values from it via `Deno.env.get(...)` when run with
+  `--env-file` in the deno tasks.
 - `.jira/` is gitignored generated output — safe to delete. Deleting
   `.jira/.state.json` forces a full pull.
 - The mirror is one-way (Jira → disk): local edits to `.jira/issues/all/*.md`
@@ -53,8 +57,8 @@ deno task categorize        # re-categorise only (offline; pull also does this)
 
 - Entry point `src/main.ts`; pipeline: `jira.ts` (REST v3, streaming pages) →
   `adf-to-markdown.ts` → `render.ts` → `pull.ts` (mirror issues to disk) →
-  `run.ts` (pull/categorize orchestration); watermark in `state.ts`; config in
-  `config.ts` (`.jira/config.ts`, loaded lazily via `getConfig`).
+  `commands/` (pull/categorize orchestration); watermark in `state.ts`; config
+  in `config.ts` (`.jira/.config.ts`, loaded lazily via `getConfig`).
 - Categories: `categorize.ts` holds the single `categorizeIssue` function
   (front-matter object + raw body → category strings, `/` = nesting);
   `categories.ts` reconciles it into symlink folders next to `all/`
@@ -68,18 +72,19 @@ deno task categorize        # re-categorise only (offline; pull also does this)
   `deno task categorize` (offline).
 - Index pages: `category-indexes.ts` renders a markdown table per leaf category
   (`.jira/issues/status/Backlog.md` next to the folder); columns come from
-  `.jira/config.ts`'s `categoryIndex` (default `DEFAULT_INDEX_COLUMNS`: `key`
+  `.jira/.config.ts`'s `categoryIndex` (default `DEFAULT_INDEX_COLUMNS`: `key`
   links into `all/`, any other front-matter field renders as a column), rows
   sorted by key. Written only when content differs; removed when their category
   goes stale or loses its index entry.
-- `.jira/config.ts` (sibling of `issues/`, gitignored, `export const config`):
+- `.jira/.config.ts` (sibling of `issues/`, gitignored, `export const config`):
   optional `categoryFolders` allowlist (top-level folders, typed as front-matter
   field names; unlisted ones are cleaned up as stale, valid-but-unproduced keys
   are inert) and `categoryIndex` map (folder → columns, allowlist — omitted
-  folders get no index; omit the whole field for defaults everywhere). The two
-  are independent: an index entry without `categoryFolders` membership yields
-  index-only categories (leaf `.md` pages, no symlink folders). Keys and columns
-  are front-matter field names, enforced at type-check and runtime.
-  Loaded/validated by `config.ts`'s cached `getConfig`; missing file = defaults.
+  folders get no index; omit the whole field for defaults everywhere), plus the
+  connection fields described under CLI. The two category are independent: an
+  index entry without `categoryFolders` membership yields index-only categories
+  (leaf `.md` pages, no symlink folders). Keys and columns are front-matter
+  field names, enforced at type-check and runtime. Loaded/validated by
+  `config.ts`'s cached `getConfig`; missing file = defaults.
 - Incremental pull keys off Jira's `updated` timestamps (account timezone), not
   the local clock.
