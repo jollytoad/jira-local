@@ -6,9 +6,11 @@
  * of the process, so callers that already know the issues folder can pull the
  * config themselves instead of it being threaded through parameters. A missing
  * config file is not an error: the defaults (no filtering) apply. A malformed
- * config — bad export, wrong shapes, unknown columns, index keys outside
- * `categoryFolders` — raises a `ConfigError` and aborts the run before any
- * writing happens.
+ * config — bad export, wrong shapes, folder names or columns that are not
+ * front-matter field names — raises a `ConfigError` and aborts the run before
+ * any writing happens. The two fields are independent: `categoryIndex` may
+ * list folders that `categoryFolders` does not (index pages without symlink
+ * folders).
  */
 
 import { stat } from "node:fs/promises";
@@ -132,21 +134,6 @@ function validate(
       entries[folder] = columns;
     }
     categoryIndex = entries;
-  }
-
-  // Typo guard: an index for a folder that is not enabled is almost always
-  // a mistake (or the folder name drifted). Absent categoryFolders means the
-  // index keys are simply inert, so they are tolerated there.
-  if (categoryFolders !== undefined && categoryIndex !== undefined) {
-    const enabled = new Set<string>(categoryFolders);
-    for (const folder of Object.keys(categoryIndex)) {
-      if (!enabled.has(folder)) {
-        throw new ConfigError(
-          `${label}: categoryIndex lists folder "${folder}" which is not in ` +
-            "categoryFolders",
-        );
-      }
-    }
   }
 
   return { categoryFolders, categoryIndex };

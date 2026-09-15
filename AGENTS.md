@@ -57,8 +57,10 @@ deno task categorize        # re-categorise only (offline; sync also does this)
   optional `categoryFolders` allowlist (top-level folders, typed as front-matter
   field names; unlisted ones are cleaned up as stale, valid-but-unproduced keys
   are inert) and `categoryIndex` map (folder → columns, allowlist — omitted
-  folders get no index; omit the whole field for defaults everywhere). Keys and
-  columns are front-matter field names, enforced at type-check and runtime.
+  folders get no index; omit the whole field for defaults everywhere). The two
+  are independent: an index entry without `categoryFolders` membership yields
+  index-only categories (leaf `.md` pages, no symlink folders). Keys and columns
+  are front-matter field names, enforced at type-check and runtime.
   Loaded/validated by `config.ts`'s cached `getConfig`; missing file = defaults.
 - Incremental sync keys off Jira's `updated` timestamps (account timezone), not
   the local clock.

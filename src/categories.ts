@@ -19,17 +19,21 @@
  * folders are ever removed.
  *
  * Which folders and index pages are materialised is configured in
- * `.jira/config.ts` (see `config.ts`): `categoryFolders` restricts the
- * top-level folders (everything else becomes stale and is cleaned up),
- * `categoryIndex` selects which top-level folders get an index page and with
- * which columns. When `categoryIndex` is omitted entirely, every leaf
- * category gets an index page with the default columns.
+ * `.jira/config.ts` (see `config.ts`). The two are independent:
+ *
+ * - `categoryFolders` restricts the symlink folders (everything else becomes
+ *   stale and is cleaned up).
+ * - `categoryIndex` selects which top-level folders get an index page and
+ *   with which columns — including folders whose symlink folders are
+ *   disabled, where only the `<leaf>.md` pages exist. When `categoryIndex`
+ *   is omitted entirely, every leaf category gets an index page with the
+ *   default columns.
  *
  * Alongside the symlinks, each indexed leaf category gets an index page: a
  * markdown table of its issues rendered by `category-indexes.ts` (e.g.
  * `status/Backlog.md` next to the `status/Backlog/` folder). Index pages are
- * written when their content differs and removed when their category turns
- * stale or loses its index entry.
+ * written when their content differs and removed when their category is no
+ * longer indexed (stale, or dropped from `categoryIndex`).
  */
 
 import { extractYaml, test } from "@std/front-matter";
@@ -204,9 +208,10 @@ export async function reconcileCategories(
     }
   }
 
-  // 2c. Write index pages for leaf categories (created/updated only when the
-  //     rendered content differs), and remove them for stale categories so
-  //     folder cleanup in step 3 is not blocked by non-symlink files.
+  // 2c. Write index pages for indexed leaf categories (created/updated only
+  //     when the rendered content differs). Indexed categories may not have
+  //     materialised folders (index-only in the config), so ensure the
+  //     parent directory exists before writing.
   for (const category of byDepth(desired.indexes.content.keys())) {
     const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
     const content = desired.indexes.content.get(category) ?? "";
@@ -221,7 +226,10 @@ export async function reconcileCategories(
       counters.indexesUnchanged++;
       continue;
     }
-    if (!dryRun) await writeFile(indexPath, content);
+    if (!dryRun) {
+      await mkdir(dirname(indexPath), { recursive: true });
+      await writeFile(indexPath, content);
+    }
     if (existing === undefined) {
       counters.indexesCreated++;
       progress(`index     ${rel} (created)`);
@@ -231,28 +239,13 @@ export async function reconcileCategories(
     }
   }
 
-  // 2d. Remove index pages of categories that are no longer produced, so
-  //     folder cleanup in step 3 is not blocked by non-symlink files.
-  for (const category of staleDirs) {
-    const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
-    const rel = relative(categoriesDir, indexPath).replaceAll(sep, "/");
-    let exists = false;
-    try {
-      exists = (await stat(indexPath)).isFile();
-    } catch {
-      exists = false;
-    }
-    if (!exists) continue;
-    if (!dryRun) await rm(indexPath);
-    counters.indexesRemoved++;
-    progress(`index     ${rel} (removed)`);
-  }
-
-  // 2d'. Remove index pages of kept categories that no longer have an index
-  //     entry in the config (e.g. a folder was dropped from `categoryIndex`),
-  //     so step 3 does not block on them either.
+  // 2d. Remove index pages of scanned categories that are no longer indexed
+  //     (stale categories, and kept categories whose `categoryIndex` entry
+  //     was dropped), so folder cleanup in step 3 is not blocked by
+  //     non-symlink files. Categories still present in the desired index
+  //     set are never removed here — that covers index-only categories,
+  //     whose folders are stale but whose index pages are kept.
   for (const category of scanned) {
-    if (staleDirs.includes(category)) continue; // handled in 2d
     if (desired.indexes.content.has(category)) continue;
     const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
     const rel = relative(categoriesDir, indexPath).replaceAll(sep, "/");
@@ -302,13 +295,18 @@ export async function reconcileCategories(
 }
 
 /**
- * Compute the desired link set: for each issue, ask the categoriser which
- * categories it belongs to, drop those disabled by the config's
- * `categoryFolders` allowlist, and derive one link per (issue, category)
- * pair. Also collects, per indexed leaf category, the rows for its index
- * page (sorted by key) and the rendered index content — categories whose
- * top-level folder is absent from the config's `categoryIndex` (when given)
- * get no index page at all.
+ * Compute the desired link and index sets: for each issue, ask the
+ * categoriser which categories it belongs to. Two independent filters apply:
+ *
+ * - `categoryFolders` allowlist (first segment): disables the symlink
+ *   folder/link for that category. Skipped categories contribute nothing to
+ *   `links`/`categories`.
+ * - `categoryIndex` (see `indexOfCategory`): decides whether the category
+ *   gets an index page. Evaluated independently of the folder filter, so a
+ *   folder can be indexed without materialising its symlink folders.
+ *
+ * Rows are collected per leaf category (sorted by key) and rendered into the
+ * index content.
  */
 function buildDesired(
   local: ReadonlyMap<string, LocalIssueFile[]>,
@@ -334,30 +332,15 @@ function buildDesired(
       for (const raw of categorizeIssue(issue)) {
         const segments = sanitizeCategoryPath(raw);
         if (segments.length === 0) continue;
-        if (folderFilter && !folderFilter.has(segments[0] ?? "")) continue;
         const category = segments.join("/");
-        const summary = sanitizeName(issue.frontMatter.summary);
-        const base = summary
-          ? `${file.key}-${summary.slice(0, MAX_SUMMARY_LENGTH)}.md`
-          : `${file.key}.md`;
-        const linkPath = join(categoriesDir, ...segments, base);
+        const folder = segments[0] ?? "";
         // Absolute target: some runtimes resolve a symlink's relative target
         // against the process CWD when checking write permissions, which a
         // relative "../.." target would push outside the sandbox.
         const targetAbs = join(allDir, `${file.key}.md`);
-        const targetRel = relative(dirname(linkPath), targetAbs).replaceAll(
-          sep,
-          "/",
-        );
-        categories.add(category);
-        links.set(linkPath, {
-          key: file.key,
-          linkPath,
-          targetRel,
-          targetAbs,
-        });
-        // Index rows: relative link target from the category folder's index
-        // page (which lives one level above the folder) into `all/`.
+
+        // Index pages are independent of the folder filter: collect rows and
+        // columns for every category the categoriser produces.
         const indexTargetRel = relative(
           join(categoriesDir, ...segments),
           targetAbs,
@@ -369,10 +352,29 @@ function buildDesired(
           targetRel: indexTargetRel,
         });
         rows.set(category, rowsForCategory);
-        const columns = indexOfCategory(config, segments[0] ?? "");
+        const columns = indexOfCategory(config, folder);
         if (columns !== undefined) {
           columnsByCategory.set(category, columns);
         }
+
+        // Symlink folders respect the `categoryFolders` allowlist.
+        if (folderFilter && !folderFilter.has(folder)) continue;
+        const summary = sanitizeName(issue.frontMatter.summary);
+        const base = summary
+          ? `${file.key}-${summary.slice(0, MAX_SUMMARY_LENGTH)}.md`
+          : `${file.key}.md`;
+        const linkPath = join(categoriesDir, ...segments, base);
+        const targetRel = relative(dirname(linkPath), targetAbs).replaceAll(
+          sep,
+          "/",
+        );
+        categories.add(category);
+        links.set(linkPath, {
+          key: file.key,
+          linkPath,
+          targetRel,
+          targetAbs,
+        });
       }
     }
   }

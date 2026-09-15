@@ -122,8 +122,10 @@ export const config: JiraLocalConfig = {
   // they derive from; unlisted ones are cleaned up.
   categoryFolders: ["status", "assignee"],
   // Index pages per top-level folder, with table columns (front-matter
-  // field names). Folders omitted here get no index page; omit the whole
-  // field for index pages everywhere with `["key", "summary"]` columns.
+  // field names). Independent of `categoryFolders`: a folder listed here
+  // but not in `categoryFolders` gets only its index pages (no symlink
+  // folders). Folders in neither list get nothing; omit `categoryIndex`
+  // entirely for index pages everywhere with `["key", "summary"]` columns.
   categoryIndex: {
     status: ["key", "summary", "assignee"],
   },
@@ -131,8 +133,7 @@ export const config: JiraLocalConfig = {
 ```
 
 A malformed config (folder names or columns that aren't front-matter field
-names, an index for a folder not in `categoryFolders`) aborts the run with a
-validation error before anything is written.
+names) aborts the run with a validation error before anything is written.
 
 ## Semantics and caveats
 
