@@ -1,4 +1,6 @@
-import { env } from "./env.ts";
+import { resolve } from "node:path";
+
+import { env, envFilePath, loadDotEnv } from "./env.ts";
 
 export interface CliOptions {
   mode: "sync" | "categorize";
@@ -18,7 +20,17 @@ export interface ResolvedCliOptions extends CliOptions {
   project: string;
 }
 
-export function parseCli(args: readonly string[]): ResolvedCliOptions {
+export function parseCli(
+  args: readonly string[],
+  cwd: string = Deno.cwd(),
+): Promise<ResolvedCliOptions> {
+  return parseCliAsync(args, cwd);
+}
+
+async function parseCliAsync(
+  args: readonly string[],
+  cwd: string,
+): Promise<ResolvedCliOptions> {
   const options: Partial<CliOptions> = {};
   let mode: "sync" | "categorize" = "sync";
   const stringFlags = new Set([
@@ -81,6 +93,12 @@ export function parseCli(args: readonly string[]): ResolvedCliOptions {
     else if (arg === "--token") options.token = value;
   }
 
+  // Credentials and defaults may live in `.jira/.env` (sibling of the issues
+  // folder) so that compiled binaries work the same way as `--env-file .env`
+  // runs. Real environment variables win: nothing is overwritten.
+  const out = options.out ?? ".jira/issues/all";
+  await loadDotEnv(envFilePath(resolve(cwd, out)));
+
   const rawSite = (options.site ?? env("JIRA_SITE") ?? "").trim();
   if (!rawSite) {
     console.error(
@@ -105,7 +123,7 @@ export function parseCli(args: readonly string[]): ResolvedCliOptions {
     mode,
     site: site.replace(/\/+$/, ""),
     project,
-    out: options.out ?? ".jira/issues/all",
+    out,
     dryRun: options.dryRun ?? false,
     prune: options.prune ?? true,
     allowEmpty: options.allowEmpty ?? false,
@@ -140,6 +158,8 @@ Options:
 
 Credentials come from JIRA_EMAIL + JIRA_API_TOKEN env vars unless overridden by
 flags. JIRA_API_TOKEN may alternatively be the combined "email:api-token" value.
+They may also live in a '.jira/.env' file (never committed), which is loaded for
+every run without overriding real environment variables.
 The Jira site URL and project key come from JIRA_SITE and JIRA_PROJECT unless
 overridden by flags. (Not needed with "categorize", which works offline.)
 

@@ -33,8 +33,8 @@ import { pluralise, progress } from "./util.ts";
 import { resolve } from "node:path";
 
 async function run(args: readonly string[]): Promise<void> {
-  const cli = parseCli(args);
   const cwd = Deno.cwd();
+  const cli = await parseCli(args, cwd);
   const outDir = resolve(cwd, cli.out);
 
   if (cli.mode === "categorize") {
@@ -238,8 +238,12 @@ export async function runGuarded(args: readonly string[]): Promise<number> {
   } catch (error) {
     if (error instanceof Deno.errors.NotCapable) {
       console.error(
-        `error: ${error.message}\nRun with the permissions shown in the header of this file, e.g.:\n` +
-          "  deno run --allow-net --allow-read --allow-write --allow-env src/main.ts",
+        `error: ${error.message}\n` +
+          (import.meta.main && Deno.mainModule?.includes("/src/main.ts")
+            ? "Run with the permissions shown in the header of this file, e.g.:\n" +
+              "  deno run --allow-net --allow-read --allow-write --allow-env src/main.ts"
+            : "This binary was compiled with fixed permissions; rebuild it with the missing permission, e.g.:\n" +
+              "  deno compile --allow-net --allow-read --allow-write --allow-env src/main.ts"),
       );
       return 1;
     }

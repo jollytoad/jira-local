@@ -74,6 +74,21 @@ JIRA_PROJECT=<project-key>
 
 All of these can be overridden with `--email`/`--token`/`--site`/`--project`.
 
+### Standalone executable
+
+The tool compiles to a self-contained binary that needs no Deno install:
+
+```sh
+deno task compile           # produces ./jira-local (current platform)
+./jira-local sync --dry-run
+./jira-local categorize
+```
+
+The binary reads credentials from the environment or from `.jira/.env` (created
+next to the issue files, in dotenv format — same `KEY=VALUE` lines as `.env`;
+real environment variables win). Cross-compile to another platform with
+`--target` (e.g. `--target aarch64-unknown-linux-gnu`).
+
 ## Usage
 
 ```sh
@@ -105,7 +120,8 @@ deno task ok               # deno fmt && deno lint && deno check
 | `.jira/issues/<category>/…` | Symlinks into `all/`, e.g. `status/Done/`, `assignee/`, `labels/` or `parent/<KEY>/…` (every folder here except `all/` is managed; done issues are status-only; folder names mirror the front-matter field they derive from) |
 | `.jira/.state.json`         | Incremental watermark + timezone + project (delete it to force a full sync)                                                                                                                                                  |
 | `.jira/config.ts`           | Optional config: which category folders and index pages are created (not committed; missing file = defaults)                                                                                                                 |
-| `.env`                      | Credentials and defaults (not committed)                                                                                                                                                                                     |
+| `.jira/.env`                | Optional credentials for the compiled binary and all runs (not committed; real environment variables win)                                                                                                                    |
+| `.env`                      | Credentials and defaults loaded by the `deno task` entries (not committed)                                                                                                                                                   |
 
 ### Configuration
 
@@ -160,7 +176,7 @@ Source lives in `src/`:
 | --------------------- | --------------------------------------------------------------------------------------------------- |
 | `main.ts`             | CLI entry: credentials, preflight, stream → sync loop, state, summary                               |
 | `cli.ts`              | Argument parsing + help                                                                             |
-| `env.ts`              | Env-var helper (empty/whitespace counts as unset)                                                   |
+| `env.ts`              | Env-var helper, `.jira/.env` dotenv loader                                                          |
 | `errors.ts`           | Error types shared by the client and CLI                                                            |
 | `jira.ts`             | Jira REST v3 client: search paging (with lookahead), comments, retries/429 backoff, incremental JQL |
 | `render.ts`           | Issue → markdown (front matter, description, comments)                                              |
