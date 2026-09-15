@@ -10,20 +10,32 @@ deno task sync --dry-run    # decide but write nothing
 deno task categorize        # re-categorise only (offline; sync also does this)
 ```
 
-- Deno 2.x, two runtime dependencies (`@std/front-matter`, `@std/yaml` via
-  `imports` in `deno.json`, pinned by `deno.lock` — commit it), no CI.
-  `deno task ok` is the full check.
+- Deno 2.x, three runtime dependencies (`@cliffy/command` for the CLI,
+  `@std/front-matter`, `@std/yaml` via `imports` in `deno.json`, pinned by
+  `deno.lock` — commit it), no CI. `deno task ok` is the full check.
 - `src/types.ts` holds types only (interfaces/type aliases) — never runtime
   values. Constants live in `src/constants.ts`.
 - The `sync`/`categorize` tasks use unscoped `--allow-write` because Deno
   refuses `symlink()` under path-scoped grants. The code itself only writes
   inside `.jira`.
 
+## CLI
+
+- `src/cli.ts` builds the cliffy `Command` (`jira-local` with a `categorize`
+  subcommand); `src/run.ts` holds `runSync`/`runCategorize`; `src/main.ts` is a
+  thin entry that parses and maps runtime errors to exit codes.
+- Env fallbacks come from cliffy `.env()` with `prefix: "JIRA_"` (so
+  `JIRA_API_TOKEN` maps to `options.apiToken`, read as `--token`'s value); flags
+  beat env vars. The old `.jira/.env` dotenv loader is gone — the root `.env` is
+  loaded by `--env-file` in the deno tasks (and not at all for a compiled
+  binary, which needs real env vars or flags).
+
 ## Files
 
 - `.env` (gitignored): `JIRA_EMAIL` + `JIRA_API_TOKEN` (Atlassian API token, not
-  password), plus `JIRA_SITE` + `JIRA_PROJECT` defaults. No defaults are
-  hardcoded — a missing `JIRA_SITE`/`JIRA_PROJECT` is a hard error.
+  password), plus `JIRA_SITE` + `JIRA_PROJECT` defaults, loaded via `--env-file`
+  in the deno tasks. No defaults are hardcoded — a missing
+  `JIRA_SITE`/`JIRA_PROJECT` is a hard error.
 - `.jira/` is gitignored generated output — safe to delete. Deleting
   `.jira/.state.json` forces a full sync.
 - The mirror is one-way (Jira → disk): local edits to `.jira/issues/all/*.md`
@@ -34,8 +46,9 @@ deno task categorize        # re-categorise only (offline; sync also does this)
 ## Notes
 
 - Entry point `src/main.ts`; pipeline: `jira.ts` (REST v3, streaming pages) →
-  `adf-to-markdown.ts` → `render.ts` → `sync.ts`; watermark in `state.ts`;
-  config in `config.ts` (`.jira/config.ts`, loaded lazily via `getConfig`).
+  `adf-to-markdown.ts` → `render.ts` → `sync.ts` → `run.ts` (sync/categorize
+  orchestration); watermark in `state.ts`; config in `config.ts`
+  (`.jira/config.ts`, loaded lazily via `getConfig`).
 - Categories: `categorize.ts` holds the single `categorizeIssue` function
   (front-matter object + raw body → category strings, `/` = nesting);
   `categories.ts` reconciles it into symlink folders next to `all/`

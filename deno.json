@@ -1,6 +1,6 @@
 {
   "imports": {
-    "@std/dotenv": "jsr:@std/dotenv@^0.225.8",
+    "@cliffy/command": "jsr:@cliffy/command@^1.2.1",
     "@std/front-matter": "jsr:@std/front-matter@^1.0.9",
     "@std/yaml": "jsr:@std/yaml@^1.2.0"
   },
@@ -11,8 +11,9 @@
     "exclude": [".tmp"]
   },
   "tasks": {
-    "sync": "deno run --allow-net --allow-read --allow-write --allow-env --env-file src/main.ts",
-    "categorize": "deno run --allow-read --allow-write --allow-env --env-file src/main.ts categorize",
+    "jira-local": "deno run --allow-net --allow-read --allow-write --allow-env --env-file src/main.ts",
+    "sync": "deno task jira-local sync",
+    "categorize": "deno task jira-local categorize",
     "ok": "deno fmt && deno lint && deno check",
     "compile": "deno compile --allow-net --allow-read --allow-write --allow-env --output jira-local src/main.ts"
   },
