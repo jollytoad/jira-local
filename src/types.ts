@@ -94,6 +94,12 @@ export interface IssueFrontMatter {
   url: string;
 }
 
+/** A front-matter field name, usable as an index table column. */
+export type IndexColumn = keyof IssueFrontMatter;
+
+/** A category folder name: the front-matter field it is derived from. */
+export type FrontMatterKey = keyof IssueFrontMatter;
+
 /** The parsed content of an issue file: typed front matter plus raw body. */
 export interface IssueFileContent {
   frontMatter: IssueFrontMatter;
@@ -140,4 +146,26 @@ export interface SyncState {
   lastRun?: string;
   /** Project the watermark belongs to. */
   project?: string;
+}
+
+/**
+ * User configuration loaded from `.jira/config.ts`. Every field is optional;
+ * an omitted field means "current default behavior". Folder names are the
+ * front-matter field names they are derived from ("status", "assignee",
+ * "labels", "parent"); other front-matter keys are valid but inert (the
+ * categoriser never produces a folder for them).
+ */
+export interface JiraLocalConfig {
+  /**
+   * Top-level category folders to materialise (first segment of a category
+   * string, e.g. "status" for "status/Done"). Omit to create every category
+   * the categoriser produces.
+   */
+  categoryFolders?: readonly FrontMatterKey[];
+  /**
+   * Index pages to create, per top-level category folder, with the table
+   * columns to render. Only listed folders get index pages; omit the whole
+   * field for index pages everywhere with the default columns.
+   */
+  categoryIndex?: Partial<Record<FrontMatterKey, readonly IndexColumn[]>>;
 }

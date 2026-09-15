@@ -3,18 +3,21 @@
  * (e.g. `.jira/issues/status/Backlog/`), a sibling markdown file
  * `status/Backlog.md` listing that category's issues as a markdown table.
  *
- * The table's columns are declared in `INDEX_COLUMNS` as front-matter field
- * names; the `key` column renders as a markdown link into the flat `all/`
- * store, any other column renders the raw front-matter value (arrays joined
- * with ", "). Rows are sorted by issue key. Add a field name to
- * `INDEX_COLUMNS` to add a column — it renders automatically.
+ * Which folders get an index page, and with which columns, is configured in
+ * `.jira/config.ts` (see `config.ts`): a map from top-level category folder
+ * to front-matter column names. `key` renders as a markdown link into the
+ * flat `all/` store, any other column renders the raw front-matter value
+ * (arrays joined with ", "). Rows are sorted by issue key. The columns here
+ * default to `DEFAULT_INDEX_COLUMNS` when the config omits `categoryIndex`.
  */
 
-import type { IssueFrontMatter } from "./types.ts";
+import type { IndexColumn, IssueFrontMatter } from "./types.ts";
 
-/** Front-matter fields shown as index table columns, in order. */
-export const INDEX_COLUMNS = ["key", "summary"] as const;
-export type IndexColumn = (typeof INDEX_COLUMNS)[number];
+/** Front-matter fields shown as index table columns when unconfigured. */
+export const DEFAULT_INDEX_COLUMNS: readonly IndexColumn[] = [
+  "key",
+  "summary",
+];
 
 /** One index table row: an issue plus how the index links back to it. */
 export interface IndexRow {
@@ -28,10 +31,11 @@ export interface IndexRow {
 export function renderIndex(
   category: string,
   rows: readonly IndexRow[],
+  columns: readonly IndexColumn[] = DEFAULT_INDEX_COLUMNS,
 ): string {
   const segments = category.split("/");
   const leaf = segments[segments.length - 1] ?? category;
-  const headers = INDEX_COLUMNS.map(titleOf);
+  const headers = columns.map(titleOf);
   const lines = [
     `# ${leaf}`,
     "",
@@ -40,7 +44,7 @@ export function renderIndex(
   ];
   for (const row of rows) {
     lines.push(
-      `| ${INDEX_COLUMNS.map((column) => cellOf(column, row)).join(" | ")} |`,
+      `| ${columns.map((column) => cellOf(column, row)).join(" | ")} |`,
     );
   }
   return `${lines.join("\n")}\n`;

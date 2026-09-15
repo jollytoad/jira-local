@@ -7,9 +7,10 @@
  *
  * Current scheme: every issue lands in `status/<status>`; issues whose
  * status category is not "Done" also land in `assignee/<name>` (or
- * `assignee/Unassigned`), one `label/<label>` per label (slashes inside a
+ * `assignee/Unassigned`), one `labels/<label>` per label (slashes inside a
  * label nest subfolders), and `parent/<parent key>` when it has a parent —
- * done issues are status-only.
+ * done issues are status-only. Folder names mirror the front-matter field
+ * each category is derived from.
  *
  * Swap this function out to change the whole layout — the reconciler in
  * `categories.ts` is generic.
@@ -30,7 +31,7 @@ export function categorizeIssue(issue: IssueFileContent): string[] {
 
   for (const label of fm.labels ?? []) {
     const trimmed = label.trim().toLowerCase();
-    if (trimmed !== "") categories.push(`label/${trimmed}`);
+    if (trimmed !== "") categories.push(`labels/${trimmed}`);
   }
 
   const parent = fm.parent?.trim();

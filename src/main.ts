@@ -13,6 +13,7 @@ import { parseCli } from "./cli.ts";
 import { reconcileCategories } from "./categories.ts";
 import { env } from "./env.ts";
 import {
+  ConfigError,
   JiraApiError,
   JiraAuthError,
   JiraProjectError,
@@ -243,6 +244,10 @@ export async function runGuarded(args: readonly string[]): Promise<number> {
       return 1;
     }
     if (error instanceof JiraAuthError || error instanceof JiraProjectError) {
+      console.error(`error: ${error.message}`);
+      return 1;
+    }
+    if (error instanceof ConfigError) {
       console.error(`error: ${error.message}`);
       return 1;
     }

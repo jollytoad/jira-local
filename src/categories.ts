@@ -18,10 +18,18 @@
  * stops producing them; foreign files are left alone and only empty managed
  * folders are ever removed.
  *
- * Alongside the symlinks, each leaf category gets an index page: a markdown
- * table of its issues rendered by `category-indexes.ts` (e.g.
+ * Which folders and index pages are materialised is configured in
+ * `.jira/config.ts` (see `config.ts`): `categoryFolders` restricts the
+ * top-level folders (everything else becomes stale and is cleaned up),
+ * `categoryIndex` selects which top-level folders get an index page and with
+ * which columns. When `categoryIndex` is omitted entirely, every leaf
+ * category gets an index page with the default columns.
+ *
+ * Alongside the symlinks, each indexed leaf category gets an index page: a
+ * markdown table of its issues rendered by `category-indexes.ts` (e.g.
  * `status/Backlog.md` next to the `status/Backlog/` folder). Index pages are
- * written when their content differs and removed with their stale category.
+ * written when their content differs and removed when their category turns
+ * stale or loses its index entry.
  */
 
 import { extractYaml, test } from "@std/front-matter";
@@ -38,11 +46,18 @@ import {
 } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import type { Dirent } from "node:fs";
-import { type IndexRow, renderIndex } from "./category-indexes.ts";
+import {
+  DEFAULT_INDEX_COLUMNS,
+  type IndexRow,
+  renderIndex,
+} from "./category-indexes.ts";
+import { getConfig, isFrontMatterKey } from "./config.ts";
 import { categorizeIssue } from "./categorize.ts";
 import type {
+  IndexColumn,
   IssueFileContent,
   IssueFrontMatter,
+  JiraLocalConfig,
   LocalIssueFile,
 } from "./types.ts";
 import { progress } from "./util.ts";
@@ -87,6 +102,9 @@ export async function reconcileCategories(
   allDir: string,
   dryRun: boolean,
 ): Promise<CategoryCounters> {
+  // Load (and validate) the config before anything is written: a malformed
+  // config aborts the run instead of half-reconciling the tree.
+  const config = await getConfig(allDir);
   const counters: CategoryCounters = {
     linksCreated: 0,
     linksRetargeted: 0,
@@ -101,7 +119,7 @@ export async function reconcileCategories(
   };
   const categoriesDir = dirname(allDir);
   const scanned = await scanManagedCategories(categoriesDir, basename(allDir));
-  const desired = buildDesired(local, allDir);
+  const desired = buildDesired(local, allDir, config);
 
   // Category folders that are no longer produced by the categoriser.
   const staleDirs = scanned.filter(
@@ -230,6 +248,26 @@ export async function reconcileCategories(
     progress(`index     ${rel} (removed)`);
   }
 
+  // 2d'. Remove index pages of kept categories that no longer have an index
+  //     entry in the config (e.g. a folder was dropped from `categoryIndex`),
+  //     so step 3 does not block on them either.
+  for (const category of scanned) {
+    if (staleDirs.includes(category)) continue; // handled in 2d
+    if (desired.indexes.content.has(category)) continue;
+    const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
+    const rel = relative(categoriesDir, indexPath).replaceAll(sep, "/");
+    let exists = false;
+    try {
+      exists = (await stat(indexPath)).isFile();
+    } catch {
+      exists = false;
+    }
+    if (!exists) continue;
+    if (!dryRun) await rm(indexPath);
+    counters.indexesRemoved++;
+    progress(`index     ${rel} (removed)`);
+  }
+
   // 3. Remove category folders that are no longer wanted (deepest first),
   //    including parents whose subfolders have all been removed.
   const removedLeaves = new Set(
@@ -265,13 +303,17 @@ export async function reconcileCategories(
 
 /**
  * Compute the desired link set: for each issue, ask the categoriser which
- * categories it belongs to and derive one link per (issue, category) pair.
- * Also collects, per leaf category, the rows for its index page (sorted by
- * key) and the rendered index content.
+ * categories it belongs to, drop those disabled by the config's
+ * `categoryFolders` allowlist, and derive one link per (issue, category)
+ * pair. Also collects, per indexed leaf category, the rows for its index
+ * page (sorted by key) and the rendered index content — categories whose
+ * top-level folder is absent from the config's `categoryIndex` (when given)
+ * get no index page at all.
  */
 function buildDesired(
   local: ReadonlyMap<string, LocalIssueFile[]>,
   allDir: string,
+  config: JiraLocalConfig,
 ): {
   links: Map<string, DesiredLink>;
   categories: Set<string>;
@@ -281,12 +323,18 @@ function buildDesired(
   const links = new Map<string, DesiredLink>();
   const categories = new Set<string>();
   const rows = new Map<string, IndexRow[]>();
+  // Columns per indexed leaf category; undefined = no index page.
+  const columnsByCategory = new Map<string, readonly IndexColumn[]>();
+  const folderFilter = config.categoryFolders
+    ? new Set<string>(config.categoryFolders)
+    : undefined;
   for (const files of local.values()) {
     for (const file of files) {
       const issue = parseIssueFile(file.content);
       for (const raw of categorizeIssue(issue)) {
         const segments = sanitizeCategoryPath(raw);
         if (segments.length === 0) continue;
+        if (folderFilter && !folderFilter.has(segments[0] ?? "")) continue;
         const category = segments.join("/");
         const summary = sanitizeName(issue.frontMatter.summary);
         const base = summary
@@ -321,15 +369,37 @@ function buildDesired(
           targetRel: indexTargetRel,
         });
         rows.set(category, rowsForCategory);
+        const columns = indexOfCategory(config, segments[0] ?? "");
+        if (columns !== undefined) {
+          columnsByCategory.set(category, columns);
+        }
       }
     }
   }
   const content = new Map<string, string>();
   for (const [category, rowsForCategory] of rows) {
+    const columns = columnsByCategory.get(category);
+    if (columns === undefined) continue; // not indexed: no page
     rowsForCategory.sort((a, b) => a.key.localeCompare(b.key));
-    content.set(category, renderIndex(category, rowsForCategory));
+    content.set(category, renderIndex(category, rowsForCategory, columns));
   }
   return { links, categories, indexes: { content, rows } };
+}
+
+/**
+ * The index columns for a top-level category folder, or undefined when the
+ * folder gets no index page. An absent `categoryIndex` config indexes every
+ * folder with the default columns. Only front-matter field names (the
+ * folder vocabulary) can appear in `categoryIndex`, so anything else is
+ * simply unindexed.
+ */
+function indexOfCategory(
+  config: JiraLocalConfig,
+  folder: string,
+): readonly IndexColumn[] | undefined {
+  if (config.categoryIndex === undefined) return DEFAULT_INDEX_COLUMNS;
+  if (!isFrontMatterKey(folder)) return undefined;
+  return config.categoryIndex[folder];
 }
 
 /**

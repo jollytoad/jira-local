@@ -99,12 +99,40 @@ deno task ok               # deno fmt && deno lint && deno check
 
 ### Files on disk
 
-| Path                        | What it is                                                                                                                                                     |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.jira/issues/all/<KEY>.md` | One markdown file per issue (regenerated, safe to delete)                                                                                                      |
-| `.jira/issues/<category>/…` | Symlinks into `all/`, e.g. `status/Done/`, `assignee/`, `label/` or `parent/<KEY>/…` (every folder here except `all/` is managed; done issues are status-only) |
-| `.jira/.state.json`         | Incremental watermark + timezone + project (delete it to force a full sync)                                                                                    |
-| `.env`                      | Credentials and defaults (not committed)                                                                                                                       |
+| Path                        | What it is                                                                                                                                                                                                                   |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.jira/issues/all/<KEY>.md` | One markdown file per issue (regenerated, safe to delete)                                                                                                                                                                    |
+| `.jira/issues/<category>/…` | Symlinks into `all/`, e.g. `status/Done/`, `assignee/`, `labels/` or `parent/<KEY>/…` (every folder here except `all/` is managed; done issues are status-only; folder names mirror the front-matter field they derive from) |
+| `.jira/.state.json`         | Incremental watermark + timezone + project (delete it to force a full sync)                                                                                                                                                  |
+| `.jira/config.ts`           | Optional config: which category folders and index pages are created (not committed; missing file = defaults)                                                                                                                 |
+| `.env`                      | Credentials and defaults (not committed)                                                                                                                                                                                     |
+
+### Configuration
+
+`.jira/config.ts` (a sibling of `issues/`) optionally restricts what the
+categoriser materialises. It is a TypeScript module exporting a `config` object;
+every field is optional and a missing file means "everything, with default
+columns":
+
+```ts
+import type { JiraLocalConfig } from "../src/types.ts";
+
+export const config: JiraLocalConfig = {
+  // Top-level category folders to create, named after the front-matter field
+  // they derive from; unlisted ones are cleaned up.
+  categoryFolders: ["status", "assignee"],
+  // Index pages per top-level folder, with table columns (front-matter
+  // field names). Folders omitted here get no index page; omit the whole
+  // field for index pages everywhere with `["key", "summary"]` columns.
+  categoryIndex: {
+    status: ["key", "summary", "assignee"],
+  },
+};
+```
+
+A malformed config (folder names or columns that aren't front-matter field
+names, an index for a folder not in `categoryFolders`) aborts the run with a
+validation error before anything is written.
 
 ## Semantics and caveats
 
@@ -127,20 +155,22 @@ deno task ok               # deno fmt && deno lint && deno check
 
 Source lives in `src/`:
 
-| File                 | Role                                                                                                |
-| -------------------- | --------------------------------------------------------------------------------------------------- |
-| `main.ts`            | CLI entry: credentials, preflight, stream → sync loop, state, summary                               |
-| `cli.ts`             | Argument parsing + help                                                                             |
-| `env.ts`             | Env-var helper (empty/whitespace counts as unset)                                                   |
-| `errors.ts`          | Error types shared by the client and CLI                                                            |
-| `jira.ts`            | Jira REST v3 client: search paging (with lookahead), comments, retries/429 backoff, incremental JQL |
-| `render.ts`          | Issue → markdown (front matter, description, comments)                                              |
-| `adf-to-markdown.ts` | Atlassian Document Format → markdown converter                                                      |
-| `sync.ts`            | Per-issue create/update/unchanged decisions, pruning, progress lines                                |
-| `categorize.ts`      | The single `categorizeIssue` function: front matter + body → category strings (`/` nests folders)   |
-| `categories.ts`      | Reconciles those categories into symlink folders next to `all/`                                     |
-| `state.ts`           | Incremental watermark load/save                                                                     |
-| `util.ts`            | Small shared helpers (progress logging, pool)                                                       |
+| File                  | Role                                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| `main.ts`             | CLI entry: credentials, preflight, stream → sync loop, state, summary                               |
+| `cli.ts`              | Argument parsing + help                                                                             |
+| `env.ts`              | Env-var helper (empty/whitespace counts as unset)                                                   |
+| `errors.ts`           | Error types shared by the client and CLI                                                            |
+| `jira.ts`             | Jira REST v3 client: search paging (with lookahead), comments, retries/429 backoff, incremental JQL |
+| `render.ts`           | Issue → markdown (front matter, description, comments)                                              |
+| `adf-to-markdown.ts`  | Atlassian Document Format → markdown converter                                                      |
+| `sync.ts`             | Per-issue create/update/unchanged decisions, pruning, progress lines                                |
+| `categorize.ts`       | The single `categorizeIssue` function: front matter + body → category strings (`/` nests folders)   |
+| `categories.ts`       | Reconciles those categories into symlink folders next to `all/`                                     |
+| `category-indexes.ts` | Renders per-category index tables (`<folder>.md` next to each category folder)                      |
+| `config.ts`           | Loads/validates `.jira/config.ts` (category folders + index pages), cached `getConfig`              |
+| `state.ts`            | Incremental watermark load/save                                                                     |
+| `util.ts`             | Small shared helpers (progress logging, pool)                                                       |
 
 Run checks with `deno task ok` (fmt, lint, type-check). Runtime dependencies
 ([pinned by `deno.lock`](./deno.lock)):
