@@ -1,13 +1,13 @@
 #!/usr/bin/env -S deno run --allow-net --allow-read --allow-write --allow-env
 /**
- * Jira issue sync tool.
+ * Jira issue pull tool.
  *
  * Fetches all issues for a project from Jira Cloud and lays them out on disk
  * as `.jira/issues/all/<KEY>.md`, pruning files so the local folder mirrors
  * Jira. Streams: pages are fetched while earlier pages render and write.
  *
- * Run via `deno task sync` (from the project root). The command definition
- * lives in `cli.ts`; orchestration in `run.ts`.
+ * Run via `deno task pull` (from the project root). The command definition
+ * lives in `cli.ts`; each command in `commands/`.
  */
 
 import { buildCommand } from "./cli.ts";

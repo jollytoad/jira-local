@@ -1,25 +1,18 @@
 /**
- * Sync logic: stream issues from Jira and mirror them into a flat folder of
+ * Pull logic: stream issues from Jira and mirror them into a flat folder of
  * `<KEY>.md` files, logging each action as it happens.
  */
 
-import {
-  mkdir,
-  readdir,
-  readFile,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { Dirent } from "node:fs";
-import type { LocalIssueFile, SyncCounters, SyncIssue } from "./types.ts";
+import type { LocalIssueFile, PullCounters, PulledIssue } from "./types.ts";
 import { progress } from "./util.ts";
 
 const ISSUE_FILE_PATTERN = /^([A-Za-z][A-Za-z0-9]*-\d+)\.md$/;
 
-/** Sync one streamed issue against the local tree. Returns the action taken. */
-export type SyncAction = "create" | "update" | "unchanged";
+/** Pull one streamed issue against the local tree. Returns the action taken. */
+export type PullAction = "create" | "update" | "unchanged";
 
 /** Scan the output folder for issue files belonging to `projectKey`. */
 export async function scanLocal(
@@ -55,14 +48,14 @@ export async function scanLocal(
  * Write (or skip) a single streamed issue, logging the action with a running
  * counter. Respects dry-run (decides but does not write).
  */
-export async function syncIssue(
-  issue: SyncIssue,
+export async function pullIssue(
+  issue: PulledIssue,
   local: ReadonlyMap<string, LocalIssueFile[]>,
   outDir: string,
   dryRun: boolean,
-  counters: SyncCounters,
+  counters: PullCounters,
   total: number | undefined,
-): Promise<SyncAction> {
+): Promise<PullAction> {
   const fileName = `${issue.key}.md`;
   const absPath = join(outDir, fileName);
   const relPath = fileName;
@@ -70,7 +63,7 @@ export async function syncIssue(
   const canonical = existing.find((f) => f.relPath === relPath);
   const content = canonical?.content;
 
-  let action: SyncAction;
+  let action: PullAction;
   if (content === undefined) action = "create";
   else if (content !== issue.markdown) action = "update";
   else action = "unchanged";
@@ -102,7 +95,7 @@ export async function pruneDeleted(
   seenKeys: ReadonlySet<string>,
   outDir: string,
   dryRun: boolean,
-  counters: SyncCounters,
+  counters: PullCounters,
 ): Promise<number> {
   let deleted = 0;
   for (const [key, files] of local) {
@@ -133,21 +126,8 @@ export async function pruneDeleted(
   return deleted;
 }
 
-function bump(counters: SyncCounters, action: SyncAction): void {
+function bump(counters: PullCounters, action: PullAction): void {
   if (action === "create") counters.created++;
   else if (action === "update") counters.updated++;
   else counters.unchanged++;
-}
-
-/** Ensure `outDir` exists (used before scanning when it may not exist yet). */
-export async function ensureOutDir(outDir: string): Promise<void> {
-  try {
-    const info = await stat(outDir);
-    if (!info.isDirectory()) throw new Error(`${outDir} is not a directory`);
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("not a directory")) {
-      throw error;
-    }
-    await mkdir(outDir, { recursive: true });
-  }
 }

@@ -115,7 +115,7 @@ export interface Credentials {
 }
 
 /** An issue rendered into its final markdown form. */
-export interface SyncIssue {
+export interface PulledIssue {
   key: string;
   markdown: string;
 }
@@ -128,16 +128,16 @@ export interface LocalIssueFile {
   content: string;
 }
 
-/** Counters for the per-issue actions taken by a sync. */
-export interface SyncCounters {
+/** Counters for the per-issue actions taken by a pull. */
+export interface PullCounters {
   created: number;
   updated: number;
   deleted: number;
   unchanged: number;
 }
 
-/** Incremental-sync watermark state persisted as `.jira/.state.json`. */
-export interface SyncState {
+/** Incremental-pull watermark state persisted as `.jira/.state.json`. */
+export interface PullState {
   /** Jira server-side `updated` watermark, "yyyy-MM-dd HH:mm". */
   maxUpdated: string;
   /** Atlassian account timezone the watermark was rendered in. */

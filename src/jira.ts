@@ -1,4 +1,4 @@
-/** Minimal Jira Cloud REST v3 client for the sync tool. */
+/** Minimal Jira Cloud REST v3 client for the pull tool. */
 
 import {
   JiraApiError,
@@ -13,7 +13,7 @@ import type {
   Credentials,
   JiraComment,
   JiraIssue,
-  SyncIssue,
+  PulledIssue,
 } from "./types.ts";
 import { pool, progress } from "./util.ts";
 
@@ -25,7 +25,7 @@ const MAX_RETRIES = 3;
 /**
  * Decide what a 0-issue fetch means. A non-zero count alongside an empty
  * search result is always a failure; a genuine empty project must opt in
- * via `allowEmpty` before the sync is allowed to prune.
+ * via `allowEmpty` before the pull is allowed to prune.
  */
 export function validateFetchResult(
   fetched: number,
@@ -158,7 +158,7 @@ export async function countIssues(
 /**
  * Fetch every issue in `project` (all statuses, optionally limited to
  * issues updated after `updatedSince`) together with its comments, rendered
- * and ready for the sync step. Reports live progress to stderr.
+ * and ready for the pull step. Reports live progress to stderr.
  *
  * Streams: the next search page starts downloading while the current
  * page's issues are rendered (comment fetches in parallel) and yielded.
@@ -174,7 +174,7 @@ export async function* streamIssues(
     updatedSince?: string;
     sawUpdated?: (updated: string) => void;
   } = {},
-): AsyncGenerator<SyncIssue> {
+): AsyncGenerator<PulledIssue> {
   const jql = `project = ${jqlQuote(project)}${
     options.updatedSince ? ` AND updated > "${options.updatedSince}"` : ""
   } ORDER BY key ASC`;
@@ -218,7 +218,7 @@ export async function* streamIssues(
       }
     }
 
-    const rendered: SyncIssue[] = await pool(
+    const rendered: PulledIssue[] = await pool(
       issues,
       COMMENT_CONCURRENCY,
       async (issue: JiraIssue) => {

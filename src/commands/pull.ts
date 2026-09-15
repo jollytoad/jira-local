@@ -1,25 +1,26 @@
 /**
- * Sync and categorize orchestration, invoked by the cliffy command actions
- * in `cli.ts`.
+ * The `pull` command: fetch issues from Jira and mirror them into the local
+ * output folder, then re-categorise. Contains its orchestration (`runPull`)
+ * alongside the cliffy command definition.
  */
 
-import { ValidationError } from "@cliffy/command";
+import { Command, ValidationError } from "@cliffy/command";
 import { resolve } from "node:path";
 
-import { reconcileCategories } from "./categories.ts";
+import { reconcileCategories } from "../categories.ts";
 import {
   countIssues,
   preflightAuth,
   preflightProject,
   streamIssues,
   validateFetchResult,
-} from "./jira.ts";
-import { pruneDeleted, scanLocal, syncIssue } from "./sync.ts";
-import { loadState, saveState, statePath } from "./state.ts";
-import type { Credentials, SyncCounters, SyncState } from "./types.ts";
-import { pluralise, progress } from "./util.ts";
+} from "../jira.ts";
+import { pruneDeleted, pullIssue, scanLocal } from "../pull.ts";
+import { loadState, saveState, statePath } from "../state.ts";
+import type { Credentials, PullCounters, PullState } from "../types.ts";
+import { elapsed, pluralise, progress } from "../util.ts";
 
-export interface SyncCliOptions {
+export interface PullOptions {
   site: string;
   project: string;
   out: string;
@@ -31,7 +32,78 @@ export interface SyncCliOptions {
   token?: string;
 }
 
-export async function runSync(cli: SyncCliOptions): Promise<void> {
+export function pullCommand() {
+  return new Command()
+    .description(
+      "Pull Jira issues into a flat folder of <KEY>.md files and maintain\n" +
+        "categorised views of symlinks.",
+    )
+    .env("JIRA_SITE=<site:string>", "Jira Cloud base URL.", { prefix: "JIRA_" })
+    .env("JIRA_PROJECT=<project:string>", "Jira project key.", {
+      prefix: "JIRA_",
+    })
+    .env("JIRA_EMAIL=<email:string>", "Atlassian account email.", {
+      prefix: "JIRA_",
+    })
+    .env("JIRA_API_TOKEN=<api-token:string>", "Atlassian API token.", {
+      prefix: "JIRA_",
+    })
+    .option("--site <url:string>", "Jira Cloud base URL (or set JIRA_SITE).")
+    .option("--project <key:string>", "Project key (or set JIRA_PROJECT).")
+    .option(
+      "--out <dir:string>",
+      "Output directory, relative to the project root.",
+      { default: ".jira/issues/all" },
+    )
+    .option(
+      "--email <email:string>",
+      "Atlassian account email (or set JIRA_EMAIL).",
+    )
+    .option(
+      "--token <secret:string>",
+      "Atlassian API token (or set JIRA_API_TOKEN).",
+    )
+    .option("--dry-run", "Print the plan without writing anything.")
+    .option(
+      "--no-prune",
+      "Do not delete files for issues no longer present in Jira.",
+    )
+    .option(
+      "--allow-empty",
+      "Permit a zero-issue result (required if the project is legitimately empty).",
+    )
+    .option(
+      "--full",
+      "Pull all issues, ignoring the incremental watermark (also the only\n" +
+        "mode that prunes issue files deleted in Jira).",
+    )
+    .action((options) => {
+      const site = options.site?.trim();
+      const project = options.project?.trim();
+      if (!site || !project) {
+        throw new ValidationError(
+          !site
+            ? "Jira site URL required — set JIRA_SITE, or pass --site"
+            : "project key required — set JIRA_PROJECT, or pass --project",
+          { exitCode: 1 },
+        );
+      }
+      const cli: PullOptions = {
+        site: site.replace(/\/+$/, ""),
+        project,
+        out: options.out,
+        dryRun: options.dryRun ?? false,
+        prune: options.prune ?? true,
+        allowEmpty: options.allowEmpty ?? false,
+        full: options.full ?? false,
+        email: options.email,
+        token: options.apiToken ?? options.token,
+      };
+      return runPull(cli);
+    });
+}
+
+export async function runPull(cli: PullOptions): Promise<void> {
   const cwd = Deno.cwd();
   const outDir = resolve(cwd, cli.out);
 
@@ -46,7 +118,7 @@ export async function runSync(cli: SyncCliOptions): Promise<void> {
 
   const started = Date.now();
   console.log(
-    `Fetching issues for ${cli.project} from ${cli.site}${
+    `Pulling issues for ${cli.project} from ${cli.site}${
       cli.dryRun ? " (dry-run)" : ""
     }...`,
   );
@@ -66,19 +138,19 @@ export async function runSync(cli: SyncCliOptions): Promise<void> {
     : undefined;
   if (incremental) {
     progress(
-      `incremental sync: issues updated since ${updatedSince}` +
+      `incremental pull: issues updated since ${updatedSince}` +
         (previous!.timeZone && previous!.timeZone !== timeZone
           ? ` (previous run tz: ${previous!.timeZone}, now: ${timeZone})`
           : ""),
     );
   } else if (!cli.full && previous === undefined) {
-    progress("no previous state found: running a full sync");
+    progress("no previous state found: running a full pull");
   } else if (cli.full) {
-    progress("--full: running a full sync");
+    progress("--full: running a full pull");
   }
 
   const local = await scanLocal(outDir, cli.project);
-  const counters: SyncCounters = {
+  const counters: PullCounters = {
     created: 0,
     updated: 0,
     deleted: 0,
@@ -102,7 +174,7 @@ export async function runSync(cli: SyncCliOptions): Promise<void> {
   ) {
     seenKeys.add(issue.key);
     issueCount++;
-    await syncIssue(issue, local, outDir, cli.dryRun, counters, undefined);
+    await pullIssue(issue, local, outDir, cli.dryRun, counters, undefined);
   }
 
   if (issueCount === 0 && !incremental) {
@@ -116,7 +188,7 @@ export async function runSync(cli: SyncCliOptions): Promise<void> {
       );
     }
     console.log(
-      "Project is empty (confirmed by approximate-count); syncing empty state.",
+      "Project is empty (confirmed by approximate-count); pulling empty state.",
     );
   }
 
@@ -129,7 +201,7 @@ export async function runSync(cli: SyncCliOptions): Promise<void> {
   // Refresh category folders (cheap: re-categorises everything in `all/`).
   const categories = await reconcileCategories(local, outDir, cli.dryRun);
 
-  const next: SyncState = {
+  const next: PullState = {
     maxUpdated: truncateToMinute(maxUpdated ?? previous?.maxUpdated ?? ""),
     timeZone,
     lastRun: new Date().toISOString(),
@@ -150,7 +222,7 @@ export async function runSync(cli: SyncCliOptions): Promise<void> {
     `${categories.indexesRemoved} indexes removed`,
   ];
   console.log(
-    `Synced ${pluralise(issueCount, "issue", "issues")} — ${
+    `Pulled ${pluralise(issueCount, "issue", "issues")} — ${
       parts.join(", ")
     } in ${elapsed(started)}${
       incremental ? ` (incremental since ${updatedSince})` : " (full)"
@@ -159,43 +231,11 @@ export async function runSync(cli: SyncCliOptions): Promise<void> {
 }
 
 /**
- * Standalone re-categorisation: refresh the category folders of symlinks
- * from the files already present in `all/`. No network, no credentials, no
- * state file — a purely local reconcile.
- */
-export async function runCategorize(
-  outDir: string,
-  dryRun: boolean,
-): Promise<void> {
-  const started = Date.now();
-  console.log(
-    `Re-categorising issues in ${outDir}${dryRun ? " (dry-run)" : ""}...`,
-  );
-  const local = await scanLocal(outDir, "*");
-  const counters = await reconcileCategories(local, outDir, dryRun);
-  const parts = [
-    `${counters.linksCreated} created`,
-    `${counters.linksRetargeted} retargeted`,
-    `${counters.linksRemoved} removed`,
-    `${counters.linksUnchanged} unchanged`,
-    `${counters.dirsCreated} folders created`,
-    `${counters.dirsRemoved} folders removed`,
-    `${counters.indexesCreated + counters.indexesUpdated} indexes changed`,
-    `${counters.indexesRemoved} indexes removed`,
-  ];
-  console.log(
-    `Categorised ${pluralise(local.size, "issue", "issues")} — ${
-      parts.join(", ")
-    } in ${elapsed(started)}${dryRun ? " — dry run: no changes written" : ""}.`,
-  );
-}
-
-/**
  * Credentials and defaults come from flags or cliffy env vars; the combined
  * "email:token" form of JIRA_API_TOKEN is also supported. Empty/whitespace
  * values are treated as unset.
  */
-function resolveCredentials(cli: SyncCliOptions): Credentials | undefined {
+function resolveCredentials(cli: PullOptions): Credentials | undefined {
   let email = cli.email?.trim() === "" ? undefined : cli.email?.trim();
   let token = cli.token?.trim() === "" ? undefined : cli.token;
 
@@ -228,9 +268,4 @@ function overlapWindow(maxUpdated: string): string {
 function truncateToMinute(iso: string): string {
   const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso);
   return m ? `${m[1]} ${m[2]}` : iso;
-}
-
-function elapsed(started: number): string {
-  const secs = (Date.now() - started) / 1000;
-  return secs >= 10 ? `${secs.toFixed(0)}s` : `${secs.toFixed(1)}s`;
 }

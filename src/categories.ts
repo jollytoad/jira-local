@@ -409,7 +409,7 @@ function indexOfCategory(
  * Parse an issue file into its typed content (front matter + raw body).
  * Values are coerced to the `IssueFrontMatter` shape; unknown or malformed
  * front matter degrades to defaults, with the whole content as body, so
- * categorisation never crashes a sync.
+ * categorisation never crashes a pull.
  */
 function parseIssueFile(content: string): IssueFileContent {
   try {

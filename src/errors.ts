@@ -50,7 +50,7 @@ export class JiraSearchMismatchError extends Error {
   constructor(count: number, searchResults: number) {
     super(
       `Search returned ${searchResults} issue(s) but approximate-count reports ${count} — ` +
-        "the enhanced search result is incomplete or inconsistent. Aborting rather than syncing a partial state.",
+        "the enhanced search result is incomplete or inconsistent. Aborting rather than pulling a partial state.",
     );
     this.name = "JiraSearchMismatchError";
     this.count = count;
