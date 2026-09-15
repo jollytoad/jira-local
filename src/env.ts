@@ -4,7 +4,7 @@
  * convenience the `--env-file` flag gives `deno run` invocations.
  */
 
-import { parse as parseDotEnv } from "@std/dotenv/parse";
+import { parse } from "@std/dotenv/parse";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
@@ -35,7 +35,7 @@ export async function loadDotEnv(path: string): Promise<void> {
   } catch {
     return; // missing (or unreadable): nothing to load
   }
-  for (const [key, value] of Object.entries(parseDotEnv(raw))) {
+  for (const [key, value] of Object.entries(parse(raw))) {
     const current = Deno.env.get(key);
     if (current === undefined || current.trim() === "") {
       Deno.env.set(key, value);

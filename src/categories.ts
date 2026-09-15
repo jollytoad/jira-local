@@ -36,7 +36,8 @@
  * longer indexed (stale, or dropped from `categoryIndex`).
  */
 
-import { extractYaml, test } from "@std/front-matter";
+import { extract } from "@std/front-matter/yaml";
+import { test } from "@std/front-matter/test";
 import {
   mkdir,
   readdir,
@@ -415,7 +416,7 @@ function parseIssueFile(content: string): IssueFileContent {
     if (!test(content)) {
       return { frontMatter: emptyFrontMatter(), body: content };
     }
-    const { attrs, body } = extractYaml<Record<string, unknown>>(content);
+    const { attrs, body } = extract<Record<string, unknown>>(content);
     return { frontMatter: coerceFrontMatter(attrs), body };
   } catch {
     return { frontMatter: emptyFrontMatter(), body: content };

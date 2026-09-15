@@ -1,4 +1,4 @@
-import { stringify } from "@std/yaml";
+import { stringify } from "@std/yaml/stringify";
 import { adfToMarkdown } from "./adf-to-markdown.ts";
 import type {
   IssueFileContent,
