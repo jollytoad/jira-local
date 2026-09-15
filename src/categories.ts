@@ -17,20 +17,28 @@
  * as managed, so stale folders are cleaned up even after the categoriser
  * stops producing them; foreign files are left alone and only empty managed
  * folders are ever removed.
+ *
+ * Alongside the symlinks, each leaf category gets an index page: a markdown
+ * table of its issues rendered by `category-indexes.ts` (e.g.
+ * `status/Backlog.md` next to the `status/Backlog/` folder). Index pages are
+ * written when their content differs and removed with their stale category.
  */
 
 import { extractYaml, test } from "@std/front-matter";
 import {
   mkdir,
   readdir,
+  readFile,
   readlink,
   rm,
   rmdir,
   stat,
   symlink,
+  writeFile,
 } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import type { Dirent } from "node:fs";
+import { type IndexRow, renderIndex } from "./category-indexes.ts";
 import { categorizeIssue } from "./categorize.ts";
 import type {
   IssueFileContent,
@@ -46,6 +54,10 @@ export interface CategoryCounters {
   linksUnchanged: number;
   dirsCreated: number;
   dirsRemoved: number;
+  indexesCreated: number;
+  indexesUpdated: number;
+  indexesRemoved: number;
+  indexesUnchanged: number;
 }
 
 interface DesiredLink {
@@ -53,6 +65,13 @@ interface DesiredLink {
   linkPath: string;
   targetRel: string;
   targetAbs: string;
+}
+
+interface DesiredIndexes {
+  /** Rendered markdown per category ("status/Backlog" -> file content). */
+  content: Map<string, string>;
+  /** Issues per category, for the index tables. */
+  rows: Map<string, IndexRow[]>;
 }
 
 const MAX_SUMMARY_LENGTH = 120;
@@ -75,6 +94,10 @@ export async function reconcileCategories(
     linksUnchanged: 0,
     dirsCreated: 0,
     dirsRemoved: 0,
+    indexesCreated: 0,
+    indexesUpdated: 0,
+    indexesRemoved: 0,
+    indexesUnchanged: 0,
   };
   const categoriesDir = dirname(allDir);
   const scanned = await scanManagedCategories(categoriesDir, basename(allDir));
@@ -163,6 +186,50 @@ export async function reconcileCategories(
     }
   }
 
+  // 2c. Write index pages for leaf categories (created/updated only when the
+  //     rendered content differs), and remove them for stale categories so
+  //     folder cleanup in step 3 is not blocked by non-symlink files.
+  for (const category of byDepth(desired.indexes.content.keys())) {
+    const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
+    const content = desired.indexes.content.get(category) ?? "";
+    const rel = relative(categoriesDir, indexPath).replaceAll(sep, "/");
+    let existing: string | undefined;
+    try {
+      existing = await readFile(indexPath, "utf8");
+    } catch {
+      existing = undefined; // missing (or unreadable): treat as to-be-created
+    }
+    if (existing === content) {
+      counters.indexesUnchanged++;
+      continue;
+    }
+    if (!dryRun) await writeFile(indexPath, content);
+    if (existing === undefined) {
+      counters.indexesCreated++;
+      progress(`index     ${rel} (created)`);
+    } else {
+      counters.indexesUpdated++;
+      progress(`index     ${rel} (updated)`);
+    }
+  }
+
+  // 2d. Remove index pages of categories that are no longer produced, so
+  //     folder cleanup in step 3 is not blocked by non-symlink files.
+  for (const category of staleDirs) {
+    const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
+    const rel = relative(categoriesDir, indexPath).replaceAll(sep, "/");
+    let exists = false;
+    try {
+      exists = (await stat(indexPath)).isFile();
+    } catch {
+      exists = false;
+    }
+    if (!exists) continue;
+    if (!dryRun) await rm(indexPath);
+    counters.indexesRemoved++;
+    progress(`index     ${rel} (removed)`);
+  }
+
   // 3. Remove category folders that are no longer wanted (deepest first),
   //    including parents whose subfolders have all been removed.
   const removedLeaves = new Set(
@@ -199,14 +266,21 @@ export async function reconcileCategories(
 /**
  * Compute the desired link set: for each issue, ask the categoriser which
  * categories it belongs to and derive one link per (issue, category) pair.
+ * Also collects, per leaf category, the rows for its index page (sorted by
+ * key) and the rendered index content.
  */
 function buildDesired(
   local: ReadonlyMap<string, LocalIssueFile[]>,
   allDir: string,
-): { links: Map<string, DesiredLink>; categories: Set<string> } {
+): {
+  links: Map<string, DesiredLink>;
+  categories: Set<string>;
+  indexes: DesiredIndexes;
+} {
   const categoriesDir = dirname(allDir);
   const links = new Map<string, DesiredLink>();
   const categories = new Set<string>();
+  const rows = new Map<string, IndexRow[]>();
   for (const files of local.values()) {
     for (const file of files) {
       const issue = parseIssueFile(file.content);
@@ -234,10 +308,28 @@ function buildDesired(
           targetRel,
           targetAbs,
         });
+        // Index rows: relative link target from the category folder's index
+        // page (which lives one level above the folder) into `all/`.
+        const indexTargetRel = relative(
+          join(categoriesDir, ...segments),
+          targetAbs,
+        ).replaceAll(sep, "/");
+        const rowsForCategory = rows.get(category) ?? [];
+        rowsForCategory.push({
+          key: file.key,
+          frontMatter: issue.frontMatter,
+          targetRel: indexTargetRel,
+        });
+        rows.set(category, rowsForCategory);
       }
     }
   }
-  return { links, categories };
+  const content = new Map<string, string>();
+  for (const [category, rowsForCategory] of rows) {
+    rowsForCategory.sort((a, b) => a.key.localeCompare(b.key));
+    content.set(category, renderIndex(category, rowsForCategory));
+  }
+  return { links, categories, indexes: { content, rows } };
 }
 
 /**

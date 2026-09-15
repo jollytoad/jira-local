@@ -43,5 +43,10 @@ deno task categorize        # re-categorise only (offline; sync also does this)
   directory under `.jira/issues/` other than `all/` is treated as managed, so
   stale folders are cleaned up automatically. Runs on every sync and via
   `deno task categorize` (offline).
+- Index pages: `category-indexes.ts` renders a markdown table per leaf category
+  (`.jira/issues/status/Backlog.md` next to the folder); columns are the
+  `INDEX_COLUMNS` const (`key` links into `all/`, any other front-matter field
+  renders as a column), rows sorted by key. Written only when content differs;
+  removed with their stale category.
 - Incremental sync keys off Jira's `updated` timestamps (account timezone), not
   the local clock.

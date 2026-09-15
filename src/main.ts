@@ -168,6 +168,8 @@ async function run(args: readonly string[]): Promise<void> {
     `${counters.unchanged} unchanged`,
     `${categories.linksCreated + categories.linksRetargeted} links changed`,
     `${categories.linksRemoved} links removed`,
+    `${categories.indexesCreated + categories.indexesUpdated} indexes changed`,
+    `${categories.indexesRemoved} indexes removed`,
   ];
   console.log(
     `Synced ${pluralise(issueCount, "issue", "issues")} — ${
@@ -197,6 +199,8 @@ async function runCategorize(outDir: string, dryRun: boolean): Promise<void> {
     `${counters.linksUnchanged} unchanged`,
     `${counters.dirsCreated} folders created`,
     `${counters.dirsRemoved} folders removed`,
+    `${counters.indexesCreated + counters.indexesUpdated} indexes changed`,
+    `${counters.indexesRemoved} indexes removed`,
   ];
   console.log(
     `Categorised ${pluralise(local.size, "issue", "issues")} — ${
