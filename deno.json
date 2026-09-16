@@ -14,6 +14,7 @@
     "jira-local": "deno run --allow-net --allow-read --allow-write --allow-env --env-file src/main.ts",
     "pull": "deno task jira-local pull",
     "categorize": "deno task jira-local categorize",
+    "init": "deno task jira-local init",
     "ok": "deno fmt && deno lint && deno check",
     "compile": "deno compile --allow-net --allow-read --allow-write --allow-env --output jira-local src/main.ts"
   },

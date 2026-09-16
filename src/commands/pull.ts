@@ -47,9 +47,9 @@ export function pullCommand() {
     )
     .option(
       "--site <url:string>",
-      "Jira Cloud base URL (beats .jira/.config.ts).",
+      "Jira Cloud base URL.",
     )
-    .option("--project <key:string>", "Project key (beats .jira/.config.ts).")
+    .option("--project <key:string>", "Project key.")
     .option(
       "--out <dir:string>",
       "Output directory, relative to the project root.",
@@ -57,11 +57,11 @@ export function pullCommand() {
     )
     .option(
       "--email <email:string>",
-      "Atlassian account email (beats .jira/.config.ts).",
+      "Atlassian account email.",
     )
     .option(
       "--token <secret:string>",
-      "Atlassian API token (beats .jira/.config.ts).",
+      "Atlassian API token.",
     )
     .option("--dry-run", "Print the plan without writing anything.")
     .option(
@@ -74,8 +74,7 @@ export function pullCommand() {
     )
     .option(
       "--full",
-      "Pull all issues, ignoring the incremental watermark (also the only\n" +
-        "mode that prunes issue files deleted in Jira).",
+      "Pull all issues, rather then an incremental update.",
     )
     .action((options) => {
       const cli: PullOptions = {
@@ -120,7 +119,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
     throw new ValidationError(
       "credentials required — set email/token in .jira/.config.ts, pass --email/--token, " +
         "or read them into the config from environment variables " +
-        '(e.g. token: Deno.env.get("JIRA_API_TOKEN"))',
+        "(e.g. token: process.env.JIRA_API_TOKEN)",
       { exitCode: 1 },
     );
   }

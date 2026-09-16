@@ -7,6 +7,7 @@
 import { Command } from "@cliffy/command";
 
 import { categorizeCommand } from "./commands/categorize.ts";
+import { initCommand } from "./commands/init.ts";
 import { pullCommand } from "./commands/pull.ts";
 
 export function buildCommand() {
@@ -18,5 +19,6 @@ export function buildCommand() {
     )
     .command("pull", pullCommand())
     .command("categorize", categorizeCommand())
+    .command("init", initCommand())
     .reset();
 }

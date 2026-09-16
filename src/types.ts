@@ -154,7 +154,7 @@ export interface PullState {
  * (`site`, `project`, `email`, `token`) are used by `pull` and ignored by
  * `categorize`; flags beat config values. Since the config is a TypeScript
  * module, it may read environment variables itself
- * (`email: Deno.env.get("JIRA_EMAIL")`) — the tool never reads env vars
+ * (`token: process.env.JIRA_API_TOKEN`) — the tool never reads env vars
  * directly. Folder names are the front-matter field names they are derived
  * from ("status", "assignee", "labels", "parent"); other front-matter keys
  * are valid but inert (the categoriser never produces a folder for them).
