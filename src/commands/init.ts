@@ -141,10 +141,10 @@ export async function runInit(
       provided.length > 0 ? `set ${provided.join("/")}; ` : ""
     }${
       remaining.length === 0
-        ? "connection settings complete, run deno task pull."
+        ? "connection settings complete, run deno task jira-local pull."
         : `kept the defaults for ${
           remaining.join("/")
-        } — set them in the config, then run deno task pull.`
+        } — set them in the config, then run deno task jira-local pull.`
     }`,
   );
 }

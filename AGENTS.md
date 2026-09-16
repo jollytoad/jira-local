@@ -3,16 +3,15 @@
 ## Commands
 
 ```sh
-deno task ok                # fmt + lint + typecheck — the only verification (no tests exist)
-deno task init              # create .jira/.config.ts interactively (--yes skips prompts; refuses if it exists)
-deno task pull              # incremental pull
-deno task pull --full       # full pull (also the only mode that prunes deletions)
-deno task pull --dry-run    # decide but write nothing
-deno task categorize        # re-categorise only (offline; pull also does this)
+deno task ok                          # fmt + lint + typecheck — the only verification (no tests exist)
+deno task jira-local init             # create .jira/.config.ts interactively (--yes skips prompts; refuses if it exists)
+deno task jira-local pull             # incremental pull
+deno task jira-local pull --full      # full pull (also the only mode that prunes deletions)
+deno task jira-local pull --dry-run   # decide but write nothing
+deno task jira-local categorize       # re-categorise only (offline; pull also does this)
 ```
 
-- `deno task jira-local <command>` is the general form
-  (`pull`/`categorize`/`init`); bare invocation shows help.
+- Bare invocation shows help.
 
 - Deno 2.x, four runtime dependencies (`@cliffy/command` for the CLI and
   `@cliffy/prompt` for init's interactive prompts, `@std/front-matter`,
@@ -44,12 +43,12 @@ deno task categorize        # re-categorise only (offline; pull also does this)
   connection fields (`site`, `project`, `email`, `token` — used by pull, ignored
   by categorize; validated as non-empty strings) plus the category fields below.
   Loaded/validated by `config.ts`'s cached `getConfig`; missing file = defaults
-  (then missing site/project is a hard error). Created by `deno task init`:
-  interactive by default — prompts for the site (full URL, domain, or bare site
-  prefix, normalised to a base URL), the project key directly, and for
-  email/token either a direct value or an env var name; `--yes`/`-y` (or a
-  non-TTY stdin) skips the prompts, and connection flags prefill/skip their
-  prompt. Refuses if the file exists.
+  (then missing site/project is a hard error). Created by
+  `deno task jira-local init`: interactive by default — prompts for the site
+  (full URL, domain, or bare site prefix, normalised to a base URL), the project
+  key directly, and for email/token either a direct value or an env var name;
+  `--yes`/`-y` (or a non-TTY stdin) skips the prompts, and connection flags
+  prefill/skip their prompt. Refuses if the file exists.
 - `.env` (gitignored, optional): not read by the tool itself — the user's
   `.config.ts` can pull values from it via `process.env.*` when run with
   `--env-file` in the deno tasks.
@@ -76,7 +75,7 @@ deno task categorize        # re-categorise only (offline; pull also does this)
   the front-matter field each category derives from. Every non-hidden directory
   under `.jira/issues/` other than `all/` is treated as managed, so stale
   folders, are cleaned up automatically. Runs on every pull and via
-  `deno task categorize` (offline).
+  `deno task jira-local categorize` (offline).
 - Index pages: `category-indexes.ts` renders a markdown table per leaf category
   (`.jira/issues/status/Backlog.md` next to the folder); columns come from
   `.jira/.config.ts`'s `categoryIndex` (default `DEFAULT_INDEX_COLUMNS`: `key`
