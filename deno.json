@@ -1,6 +1,7 @@
 {
   "imports": {
     "@cliffy/command": "jsr:@cliffy/command@^1.2.1",
+    "@cliffy/prompt": "jsr:@cliffy/prompt@^1.2.1",
     "@std/front-matter": "jsr:@std/front-matter@^1.0.9",
     "@std/yaml": "jsr:@std/yaml@^1.2.0"
   },

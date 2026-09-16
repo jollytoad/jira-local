@@ -4,7 +4,7 @@
 
 ```sh
 deno task ok                # fmt + lint + typecheck — the only verification (no tests exist)
-deno task init              # create a default .jira/.config.ts (refuses if it exists)
+deno task init              # create .jira/.config.ts interactively (--yes skips prompts; refuses if it exists)
 deno task pull              # incremental pull
 deno task pull --full       # full pull (also the only mode that prunes deletions)
 deno task pull --dry-run    # decide but write nothing
@@ -14,9 +14,10 @@ deno task categorize        # re-categorise only (offline; pull also does this)
 - `deno task jira-local <command>` is the general form
   (`pull`/`categorize`/`init`); bare invocation shows help.
 
-- Deno 2.x, three runtime dependencies (`@cliffy/command` for the CLI,
-  `@std/front-matter`, `@std/yaml` via `imports` in `deno.json`, pinned by
-  `deno.lock` — commit it), no CI. `deno task ok` is the full check.
+- Deno 2.x, four runtime dependencies (`@cliffy/command` for the CLI and
+  `@cliffy/prompt` for init's interactive prompts, `@std/front-matter`,
+  `@std/yaml` via `imports` in `deno.json`, pinned by `deno.lock` — commit it),
+  no CI. `deno task ok` is the full check.
 - `src/types.ts` holds types only (interfaces/type aliases) — never runtime
   values. Constants live in `src/constants.ts`.
 - The `pull`/`categorize` tasks use unscoped `--allow-write` because Deno
@@ -43,9 +44,12 @@ deno task categorize        # re-categorise only (offline; pull also does this)
   connection fields (`site`, `project`, `email`, `token` — used by pull, ignored
   by categorize; validated as non-empty strings) plus the category fields below.
   Loaded/validated by `config.ts`'s cached `getConfig`; missing file = defaults
-  (then missing site/project is a hard error). Created by `deno task init`
-  (optional `--site/--project/--email/--token` prefill uncommented values;
-  refuses if the file exists).
+  (then missing site/project is a hard error). Created by `deno task init`:
+  interactive by default — prompts for the site (full URL, domain, or bare site
+  prefix, normalised to a base URL), the project key directly, and for
+  email/token either a direct value or an env var name; `--yes`/`-y` (or a
+  non-TTY stdin) skips the prompts, and connection flags prefill/skip their
+  prompt. Refuses if the file exists.
 - `.env` (gitignored, optional): not read by the tool itself — the user's
   `.config.ts` can pull values from it via `process.env.*` when run with
   `--env-file` in the deno tasks.
