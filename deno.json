@@ -1,4 +1,9 @@
 {
+  "name": "@jollytoad/jira-local",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./src/mod.ts"
+  },
   "imports": {
     "@cliffy/command": "jsr:@cliffy/command@^1.2.1",
     "@cliffy/prompt": "jsr:@cliffy/prompt@^1.2.1",
@@ -13,8 +18,10 @@
   },
   "tasks": {
     "jira-local": "deno run --allow-net --allow-read --allow-write --allow-env --env-file src/main.ts",
-    "ok": "deno fmt && deno lint && deno check",
-    "compile": "deno compile --allow-net --allow-read --allow-write --allow-env --output jira-local src/main.ts"
+    "ok": "deno fmt && deno lint && deno check && deno task publish:check",
+    "compile": "deno compile --allow-net --allow-read --allow-write --allow-env --output jira-local src/main.ts",
+    "publish:check": "deno publish --dry-run --allow-dirty",
+    "publish": "deno publish"
   },
   "compilerOptions": {
     "strict": true,

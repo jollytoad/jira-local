@@ -259,8 +259,14 @@ function capitalise(name: string): string {
 }
 
 function template(connection: Connection): string {
-  let types = import.meta.resolve("../src/types.ts");
-  if (types.startsWith("file:")) types = "../src/types.ts";
+  // The written config imports the config type from the package root
+  // (mod.ts). Locally that is a relative path into the repo; when running
+  // from a published package (jsr.io URL) refer to the package itself, so
+  // the import survives version bumps.
+  let types = import.meta.resolve("../src/mod.ts");
+  if (types.startsWith("file:")) types = "../src/mod.ts";
+  const published = /https:\/\/jsr\.io\/(@[^/]+)\/([^@/]+)@[^/]+\//.exec(types);
+  if (published) types = `jsr:${published[1]}/${published[2]}`;
 
   return `import type { JiraLocalConfig } from ${JSON.stringify(types)};
 

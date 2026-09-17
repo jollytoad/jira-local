@@ -7,7 +7,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { PullState } from "./types.ts";
+import type { PullState } from "./types/jira-local.ts";
 
 /** Path of the state file, sibling of the issues output dir. */
 export function statePath(outDir: string): string {

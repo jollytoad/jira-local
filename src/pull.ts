@@ -6,7 +6,11 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { Dirent } from "node:fs";
-import type { LocalIssueFile, PullCounters, PulledIssue } from "./types.ts";
+import type {
+  LocalIssueFile,
+  PullCounters,
+  PulledIssue,
+} from "./types/jira-local.ts";
 import { progress } from "./util.ts";
 
 const ISSUE_FILE_PATTERN = /^([A-Za-z][A-Za-z0-9]*-\d+)\.md$/;

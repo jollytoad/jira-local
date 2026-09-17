@@ -62,9 +62,9 @@ import type {
   IndexColumn,
   IssueFileContent,
   IssueFrontMatter,
-  JiraLocalConfig,
   LocalIssueFile,
-} from "./types.ts";
+} from "./types/jira-local.ts";
+import type { JiraLocalConfig } from "./types/config.ts";
 import { progress } from "./util.ts";
 
 export interface CategoryCounters {

@@ -19,12 +19,9 @@ import {
 } from "../jira.ts";
 import { pruneDeleted, pullIssue, scanLocal } from "../pull.ts";
 import { loadState, saveState, statePath } from "../state.ts";
-import type {
-  Credentials,
-  JiraLocalConfig,
-  PullCounters,
-  PullState,
-} from "../types.ts";
+import type { Credentials } from "../types/jira-raw.ts";
+import type { PullCounters, PullState } from "../types/jira-local.ts";
+import type { JiraLocalConfig } from "../types/config.ts";
 import { elapsed, pluralise, progress } from "../util.ts";
 
 export interface PullOptions {

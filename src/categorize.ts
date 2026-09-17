@@ -16,7 +16,7 @@
  * `categories.ts` is generic.
  */
 
-import type { IssueFileContent } from "./types.ts";
+import type { IssueFileContent } from "./types/jira-local.ts";
 
 /** Determine the categories of a single issue. */
 export function categorizeIssue(issue: IssueFileContent): string[] {

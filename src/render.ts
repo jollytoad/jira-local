@@ -1,11 +1,7 @@
 import { stringify } from "@std/yaml/stringify";
 import { adfToMarkdown } from "./adf-to-markdown.ts";
-import type {
-  IssueFileContent,
-  IssueFrontMatter,
-  JiraIssue,
-  JiraIssueRef,
-} from "./types.ts";
+import type { IssueFileContent, IssueFrontMatter } from "./types/jira-local.ts";
+import type { JiraIssue, JiraIssueRef } from "./types/jira-raw.ts";
 import { displayName, isoDate } from "./util.ts";
 
 export interface RenderedIssue {

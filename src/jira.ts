@@ -8,13 +8,9 @@ import {
   RateLimitError,
 } from "./errors.ts";
 import { renderIssue } from "./render.ts";
-import type {
-  AdfNode,
-  Credentials,
-  JiraComment,
-  JiraIssue,
-  PulledIssue,
-} from "./types.ts";
+import type { AdfNode } from "./types/adf.ts";
+import type { Credentials, JiraComment, JiraIssue } from "./types/jira-raw.ts";
+import type { PulledIssue } from "./types/jira-local.ts";
 import { pool, progress } from "./util.ts";
 
 const SEARCH_PAGE_SIZE = 100;

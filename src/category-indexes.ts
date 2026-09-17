@@ -11,7 +11,7 @@
  * default to `DEFAULT_INDEX_COLUMNS` when the config omits `categoryIndex`.
  */
 
-import type { IndexColumn, IssueFrontMatter } from "./types.ts";
+import type { IndexColumn, IssueFrontMatter } from "./types/jira-local.ts";
 
 /** Front-matter fields shown as index table columns when unconfigured. */
 export const DEFAULT_INDEX_COLUMNS: readonly IndexColumn[] = [

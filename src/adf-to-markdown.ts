@@ -6,7 +6,7 @@
  * its inline text so content is never silently dropped.
  */
 
-import type { AdfMark, AdfNode } from "./types.ts";
+import type { AdfMark, AdfNode } from "./types/adf.ts";
 
 interface InlineOptions {
   inListItem?: boolean;

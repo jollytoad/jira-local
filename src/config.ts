@@ -18,7 +18,8 @@ import { dirname, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { ConfigError } from "./errors.ts";
 import { FRONT_MATTER_KEYS } from "./constants.ts";
-import type { FrontMatterKey, IndexColumn, JiraLocalConfig } from "./types.ts";
+import type { FrontMatterKey, IndexColumn } from "./types/jira-local.ts";
+import type { JiraLocalConfig } from "./types/config.ts";
 
 /** Path of the config file, sibling of the issues folder (like the state file). */
 export function configPath(outDir: string): string {

@@ -17,8 +17,13 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
   `@cliffy/prompt` for init's interactive prompts, `@std/front-matter`,
   `@std/yaml` via `imports` in `deno.json`, pinned by `deno.lock` — commit it),
   no CI. `deno task ok` is the full check.
-- `src/types.ts` holds types only (interfaces/type aliases) — never runtime
-  values. Constants live in `src/constants.ts`.
+- `src/types/` hold types only (interfaces/type aliases) — never runtime values.
+  Constants live in `src/constants.ts`. Types are split by domain:
+  `types/adf.ts` (ADF documents), `types/jira-raw.ts` (raw Jira REST payloads
+  and credentials), `types/jira-local.ts` (converted front matter/file data, the
+  field-name vocabulary, and pull-pipeline shapes: rendered issue, local file
+  records, counters, state), and `types/config.ts` (the `JiraLocalConfig` user
+  config).
 - The `pull`/`categorize` tasks use unscoped `--allow-write` because Deno
   refuses `symlink()` under path-scoped grants. The code itself only writes
   inside `.jira`.
@@ -36,6 +41,14 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
   (`token: process.env.JIRA_API_TOKEN`). Categorize needs no credentials.
 - The compiled binary reads no `.env` file; it gets values from `.config.ts`,
   flags, or env vars the config reads itself.
+- The package also publishes to JSR (`deno task publish:check` /
+  `deno task publish`; bump `version` in deno.json): the only export is `.` →
+  `src/mod.ts`, which re-exports the `JiraLocalConfig` type from
+  `src/types/config.ts` so `.config.ts` authors can
+  `import type { JiraLocalConfig } from "jsr:@jollytoad/jira-local"`. `init`'s
+  generated config imports from `../src/mod.ts` locally and from the package
+  specifier when run from a published copy. Everything else (orchestration, CLI)
+  stays unpublished.
 
 ## Files
 
