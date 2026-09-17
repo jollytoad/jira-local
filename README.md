@@ -1,5 +1,10 @@
 # jira-local
 
+> [!WARNING]
+> **Very experimental.** This project is being built mostly using
+> [OpenCode](https://opencode.ai) with GLM-5.3-Flash. It may change or break
+> without notice, and it has not been battle-tested. Use at your own risk.
+
 A small Deno tool that mirrors a Jira Cloud project onto local disk as plain
 markdown — one file per issue — so you can grep, diff, and edit your issues with
 the tools you already use.
