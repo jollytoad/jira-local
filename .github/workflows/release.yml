@@ -29,10 +29,72 @@ jobs:
             exit 1
           fi
 
-      - name: Compile
-        run: deno compile -P --app-name jira-local --output jira-local-aarch64-apple-darwin --target aarch64-apple-darwin src/cli.ts
+      - name: Build targets
+        run: |
+          version=$(jq -r .version deno.json)
+          : > shas.txt
+          for target in aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+            deno compile -P --app-name jira-local --output "jira-local-$target" --target "$target" src/cli.ts
+            cp "jira-local-$target" jira-local
+            tar -czf "jira-local-v$version-$target.tar.gz" jira-local
+            rm jira-local
+            echo "$target $(sha256sum "jira-local-v$version-$target.tar.gz" | cut -d' ' -f1)" >> shas.txt
+          done
 
-      - name: Attach binary to release
+      - name: Upload assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "jira-local-aarch64-apple-darwin" --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" jira-local-v*.tar.gz --clobber
+
+      - name: Generate formula
+        run: |
+          version=$(jq -r .version deno.json)
+          sha() { awk -v t="$1" '$1 == t { print $2 }' shas.txt; }
+          mkdir -p Formula
+          cat > Formula/cli.rb <<EOF
+          class Cli < Formula
+            desc "Mirror a Jira Cloud project to local markdown files"
+            homepage "https://github.com/jollytoad/jira-local"
+            version "$version"
+            on_macos do
+              on_arm do
+                url "https://github.com/jollytoad/jira-local/releases/download/v#{version}/jira-local-v#{version}-aarch64-apple-darwin.tar.gz"
+                sha256 "$(sha aarch64-apple-darwin)"
+              end
+              on_intel do
+                url "https://github.com/jollytoad/jira-local/releases/download/v#{version}/jira-local-v#{version}-x86_64-apple-darwin.tar.gz"
+                sha256 "$(sha x86_64-apple-darwin)"
+              end
+            end
+            on_linux do
+              on_arm do
+                url "https://github.com/jollytoad/jira-local/releases/download/v#{version}/jira-local-v#{version}-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "$(sha aarch64-unknown-linux-gnu)"
+              end
+              on_intel do
+                url "https://github.com/jollytoad/jira-local/releases/download/v#{version}/jira-local-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "$(sha x86_64-unknown-linux-gnu)"
+              end
+            end
+            def install
+              bin.install "jira-local"
+            end
+            livecheck do
+              url "https://github.com/jollytoad/jira-local"
+              strategy :github_releases
+            end
+          end
+          EOF
+
+      - name: Commit formula
+        run: |
+          version=$(jq -r .version deno.json)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/cli.rb
+          if git diff --cached --quiet; then
+            echo "Formula unchanged"
+            exit 0
+          fi
+          git commit -m "Update formula for v$version [skip ci]"
+          git push origin HEAD:main

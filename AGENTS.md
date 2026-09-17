@@ -19,10 +19,16 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
   `deno task ok` is the full check; CI is two workflows in `.github/workflows/`
   (both `on: release: types: [published]`, and both verify the tag is `v` +
   `version` from `deno.json`): `publish.yml` fmt/lint/checks then `deno publish`
-  to JSR, `release.yml` compiles a single `aarch64-apple-darwin` binary via
-  `deno compile -P` (permissions from `compile.permissions` in `deno.json`) and
-  uploads it to the release that triggered the run. To release, bump `version`
-  in `deno.json`, then create/publish a GitHub release tagged `v<version>`.
+  to JSR; `release.yml` compiles four targets (`aarch64-apple-darwin`,
+  `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`,
+  `aarch64-unknown-linux-gnu`) via `deno compile -P` (permissions from
+  `compile.permissions` in `deno.json`), uploads each as a versioned tarball
+  `jira-local-v<version>-<target>.tar.gz` to the release that triggered the run,
+  then regenerates `Formula/cli.rb` (Homebrew formula; installs via
+  `brew install jollytoad/jira-local/cli`) with the new version and SHA256s and
+  commits it to `main` as `github-actions[bot]` — that push requires the tag to
+  point at current `main`. To release, bump `version` in `deno.json`, then
+  create/publish a GitHub release tagged `v<version>`.
 - `src/types/` hold types only (interfaces/type aliases) — never runtime values.
   Constants live in `src/constants.ts`. Types are split by domain:
   `types/adf.ts` (ADF documents), `types/jira-raw.ts` (raw Jira REST payloads

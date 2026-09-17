@@ -63,9 +63,34 @@ url: "https://yoursite.atlassian.net/browse/EXAMPLE-123"
 
 ## Requirements
 
-- [Deno](https://deno.com) 2.x
+- Either [Homebrew](https://brew.sh), or [Deno](https://deno.com) 2.x
 - A Jira Cloud account with an
   [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
+
+## Install
+
+### Homebrew
+
+Prebuilt binaries for macOS (Apple Silicon and Intel) and Linux (x86_64 and
+arm64), no Deno install needed:
+
+```sh
+brew install jollytoad/jira-local/cli
+```
+
+### Deno
+
+Run the CLI straight from the published JSR package (or clone the repo and use
+the `deno task` entries):
+
+```sh
+deno run jsr:@jollytoad/jira-local/cli init
+deno run --allow-net --allow-read --allow-write --allow-env jsr:@jollytoad/jira-local/cli pull
+deno run jsr:@jollytoad/jira-local/cli categorize
+```
+
+Permissions are still needed (network for `pull`, file access for
+`pull`/`categorize`), so grant them per-run as shown for `pull` above.
 
 ## Setup
 
@@ -107,7 +132,12 @@ overridden per-run with `--site`/`--project`/`--email`/ `--token`.
 
 ### Standalone executable
 
-The tool compiles to a self-contained binary that needs no Deno install:
+Releases also contain versioned tarballs
+(`jira-local-v<version>-<target>.tar.gz`) for `aarch64-apple-darwin`,
+`x86_64-apple-darwin`, `x86_64-unknown-linux-gnu` and
+`aarch64-unknown-linux-gnu` — download one, untar, and put the `jira-local`
+binary on your `PATH`. Locally the tool compiles to a self-contained binary that
+needs no Deno install:
 
 ```sh
 deno task compile        # produces ./jira-local (current platform)
@@ -120,19 +150,6 @@ The binary reads no `.env` file: it gets values from `.jira/.config.ts`, the
 flags, or environment variables the config itself reads via `process.env.*`.
 Cross-compile to another platform with `--target` (e.g.
 `--target aarch64-unknown-linux-gnu`).
-
-### Run directly from JSR
-
-Without cloning the repo, run the CLI straight from the published package:
-
-```sh
-deno run jsr:@jollytoad/jira-local/cli init
-deno run --allow-net --allow-read --allow-write --allow-env jsr:@jollytoad/jira-local/cli pull
-deno run jsr:@jollytoad/jira-local/cli categorize
-```
-
-Permissions are still needed (network for `pull`, file access for
-`pull`/`categorize`), so grant them per-run as shown for `pull` above.
 
 ## Usage
 
