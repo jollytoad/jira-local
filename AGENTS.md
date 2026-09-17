@@ -31,10 +31,9 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
 ## CLI
 
 - `src/cli.ts` builds the cliffy `Command` (`jira-local` with `pull`,
-  `categorize` and `init` subcommands); each command lives in
-  `src/commands/<name>.ts` with its orchestration (`runPull`/`runCategorize`)
-  next to its definition; `src/main.ts` is a thin entry that parses and maps
-  runtime errors to exit codes.
+  `categorize` and `init` subcommands), parses it and maps runtime errors to
+  exit codes; each command lives in `src/commands/<name>.ts` with its
+  orchestration (`runPull`/`runCategorize`) next to its definition.
 - Connection settings (site, project, email, token) resolve with precedence
   flags > `.jira/.config.ts`. The tool never reads environment variables — the
   config is a TS module, so the user opts into env access there
@@ -42,13 +41,14 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
 - The compiled binary reads no `.env` file; it gets values from `.config.ts`,
   flags, or env vars the config reads itself.
 - The package also publishes to JSR (`deno task publish:check` /
-  `deno task publish`; bump `version` in deno.json): the only export is `.` →
-  `src/mod.ts`, which re-exports the `JiraLocalConfig` type from
+  `deno task publish`; bump `version` in deno.json): exports are `.` →
+  `src/mod.ts` (re-exporting the `JiraLocalConfig` type from
   `src/types/config.ts` so `.config.ts` authors can
-  `import type { JiraLocalConfig } from "jsr:@jollytoad/jira-local"`. `init`'s
-  generated config imports from `../src/mod.ts` locally and from the package
-  specifier when run from a published copy. Everything else (orchestration, CLI)
-  stays unpublished.
+  `import type { JiraLocalConfig } from "jsr:@jollytoad/jira-local"`) and
+  `./cli` → `src/cli.ts`, runnable directly as
+  `deno run jsr:@jollytoad/jira-local/cli`. `init`'s generated config imports
+  from `../src/mod.ts` locally and from the package specifier when run from a
+  published copy.
 
 ## Files
 
@@ -74,7 +74,7 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
 
 ## Notes
 
-- Entry point `src/main.ts`; pipeline: `jira.ts` (REST v3, streaming pages) →
+- Entry point `src/cli.ts`; pipeline: `jira.ts` (REST v3, streaming pages) →
   `adf-to-markdown.ts` → `render.ts` → `pull.ts` (mirror issues to disk) →
   `commands/` (pull/categorize orchestration); watermark in `state.ts`; config
   in `config.ts` (`.jira/.config.ts`, loaded lazily via `getConfig`).

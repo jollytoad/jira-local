@@ -121,6 +121,19 @@ flags, or environment variables the config itself reads via `process.env.*`.
 Cross-compile to another platform with `--target` (e.g.
 `--target aarch64-unknown-linux-gnu`).
 
+### Run directly from JSR
+
+Without cloning the repo, run the CLI straight from the published package:
+
+```sh
+deno run jsr:@jollytoad/jira-local/cli init
+deno run --allow-net --allow-read --allow-write --allow-env jsr:@jollytoad/jira-local/cli pull
+deno run jsr:@jollytoad/jira-local/cli categorize
+```
+
+Permissions are still needed (network for `pull`, file access for
+`pull`/`categorize`), so grant them per-run as shown for `pull` above.
+
 ## Usage
 
 ```sh
@@ -204,26 +217,25 @@ names) aborts the run with a validation error before anything is written.
 
 Source lives in `src/`:
 
-| File                     | Role                                                                                                       |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `main.ts`                | Thin entry: parses via the cliffy command tree, maps runtime errors to exit codes                          |
-| `cli.ts`                 | Builds the cliffy `Command` (`pull`, `categorize`, `init` subcommands) + help                              |
-| `commands/pull.ts`       | The `pull` command: connection resolution, preflight, stream → mirror loop, state, summary                 |
-| `commands/categorize.ts` | The `categorize` command: offline re-categorisation of the files already on disk                           |
-| `commands/init.ts`       | The `init` command: prompts, site normalisation, writes the `.jira/.config.ts` template                    |
-| `errors.ts`              | Error types shared by the client and CLI                                                                   |
-| `jira.ts`                | Jira REST v3 client: search paging (with lookahead), comments, retries/429 backoff, incremental JQL        |
-| `render.ts`              | Issue → markdown (front matter, description, comments)                                                     |
-| `adf-to-markdown.ts`     | Atlassian Document Format → markdown converter                                                             |
-| `pull.ts`                | Per-issue create/update/unchanged decisions, pruning, progress lines                                       |
-| `categorize.ts`          | The single `categorizeIssue` function: front matter + body → category strings (`/` nests folders)          |
-| `categories.ts`          | Reconciles those categories into symlink folders next to `all/`                                            |
-| `category-indexes.ts`    | Renders per-category index tables (`<folder>.md` next to each category folder)                             |
-| `config.ts`              | Loads/validates `.jira/.config.ts` (connection fields, category folders + index pages), cached `getConfig` |
-| `state.ts`               | Incremental watermark load/save                                                                            |
-| `constants.ts`           | Shared runtime constants (front-matter field names for config validation)                                  |
-| `types.ts`               | Types only (interfaces/type aliases)                                                                       |
-| `util.ts`                | Small shared helpers (progress logging, pool)                                                              |
+| File                     | Role                                                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `cli.ts`                 | Entry: builds the cliffy `Command` (`pull`, `categorize`, `init` subcommands) + help, parses, maps runtime errors to exit codes |
+| `commands/pull.ts`       | The `pull` command: connection resolution, preflight, stream → mirror loop, state, summary                                      |
+| `commands/categorize.ts` | The `categorize` command: offline re-categorisation of the files already on disk                                                |
+| `commands/init.ts`       | The `init` command: prompts, site normalisation, writes the `.jira/.config.ts` template                                         |
+| `errors.ts`              | Error types shared by the client and CLI                                                                                        |
+| `jira.ts`                | Jira REST v3 client: search paging (with lookahead), comments, retries/429 backoff, incremental JQL                             |
+| `render.ts`              | Issue → markdown (front matter, description, comments)                                                                          |
+| `adf-to-markdown.ts`     | Atlassian Document Format → markdown converter                                                                                  |
+| `pull.ts`                | Per-issue create/update/unchanged decisions, pruning, progress lines                                                            |
+| `categorize.ts`          | The single `categorizeIssue` function: front matter + body → category strings (`/` nests folders)                               |
+| `categories.ts`          | Reconciles those categories into symlink folders next to `all/`                                                                 |
+| `category-indexes.ts`    | Renders per-category index tables (`<folder>.md` next to each category folder)                                                  |
+| `config.ts`              | Loads/validates `.jira/.config.ts` (connection fields, category folders + index pages), cached `getConfig`                      |
+| `state.ts`               | Incremental watermark load/save                                                                                                 |
+| `constants.ts`           | Shared runtime constants (front-matter field names for config validation)                                                       |
+| `types.ts`               | Types only (interfaces/type aliases)                                                                                            |
+| `util.ts`                | Small shared helpers (progress logging, pool)                                                                                   |
 
 Run checks with `deno task ok` (fmt, lint, type-check). Runtime dependencies
 ([pinned by `deno.lock`](./deno.lock)):
