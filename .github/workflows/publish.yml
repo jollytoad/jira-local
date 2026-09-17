@@ -1,9 +1,8 @@
 name: Publish
 
 on:
-  push:
-    branches:
-      - main
+  release:
+    types: [published]
 
 jobs:
   publish:
@@ -19,6 +18,15 @@ jobs:
 
       - name: Install Deno
         uses: denoland/setup-deno@v2
+
+      - name: Check tag matches version
+        run: |
+          version=$(jq -r .version deno.json)
+          tag="${{ github.event.release.tag_name }}"
+          if [ "v$version" != "$tag" ]; then
+            echo "::error::Release tag $tag does not match deno.json version $version"
+            exit 1
+          fi
 
       - name: Verify formatting
         run: deno fmt --check

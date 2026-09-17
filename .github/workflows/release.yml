@@ -1,11 +1,15 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - { os: ubuntu-latest, target: aarch64-apple-darwin }
+    runs-on: ubuntu-latest
 
-    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -13,12 +17,43 @@ jobs:
 
       - name: Install Deno
         uses: denoland/setup-deno@v2
+        with:
+          cache: true
+
+      - name: Check tag matches version
+        run: |
+          version=$(jq -r .version deno.json)
+          tag="${{ github.event.release.tag_name }}"
+          if [ "v$version" != "$tag" ]; then
+            echo "::error::Release tag $tag does not match deno.json version $version"
+            exit 1
+          fi
 
       - name: Compile
-        run: deno compile -P --app-name jira-local --output jira-local-${{ matrix.target }} --target ${{ matrix.target }} src/cli.ts
+        run: deno compile -P --app-name jira-local --output jira-local-aarch64-apple-darwin --target aarch64-apple-darwin src/cli.ts
 
       - name: Upload
         uses: actions/upload-artifact@v7
         with:
-          path: jira-local-${{ matrix.target }}
+          name: jira-local-aarch64-apple-darwin
+          path: jira-local-aarch64-apple-darwin
           archive: false
+
+  attach:
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download
+        uses: actions/download-artifact@v7
+        with:
+          name: jira-local-aarch64-apple-darwin
+          path: release
+
+      - name: Attach binary to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "release/jira-local-aarch64-apple-darwin" --clobber

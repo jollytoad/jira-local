@@ -15,8 +15,14 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
 
 - Deno 2.x, four runtime dependencies (`@cliffy/command` for the CLI and
   `@cliffy/prompt` for init's interactive prompts, `@std/front-matter`,
-  `@std/yaml` via `imports` in `deno.json`, pinned by `deno.lock` — commit it),
-  no CI. `deno task ok` is the full check.
+  `@std/yaml` via `imports` in `deno.json`, pinned by `deno.lock` — commit it).
+  `deno task ok` is the full check; CI is two workflows in `.github/workflows/`
+  (both `on: release: types: [published]`, and both verify the tag is `v` +
+  `version` from `deno.json`): `publish.yml` fmt/lint/checks then `deno publish`
+  to JSR, `release.yml` compiles a single `aarch64-apple-darwin` binary via
+  `deno compile -P` (permissions from `compile.permissions` in `deno.json`) and
+  uploads it to the release that triggered the run. To release, bump `version`
+  in `deno.json`, then create/publish a GitHub release tagged `v<version>`.
 - `src/types/` hold types only (interfaces/type aliases) — never runtime values.
   Constants live in `src/constants.ts`. Types are split by domain:
   `types/adf.ts` (ADF documents), `types/jira-raw.ts` (raw Jira REST payloads
