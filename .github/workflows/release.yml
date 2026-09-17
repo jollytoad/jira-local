@@ -1,0 +1,24 @@
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: aarch64-apple-darwin }
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+
+      - name: Compile
+        run: deno compile -P --app-name jira-local --output jira-local-${{ matrix.target }} --target ${{ matrix.target }} src/cli.ts
+
+      - name: Upload
+        uses: actions/upload-artifact@v7
+        with:
+          path: jira-local-${{ matrix.target }}
+          archive: false

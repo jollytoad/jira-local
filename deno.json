@@ -21,7 +21,7 @@
   "tasks": {
     "jira-local": "deno run --allow-net --allow-read --allow-write --allow-env --env-file src/cli.ts",
     "ok": "deno fmt && deno lint && deno check && deno task publish:check",
-    "compile": "deno compile --allow-net --allow-read --allow-write --allow-env --output jira-local src/cli.ts",
+    "compile": "deno compile -P --app-name jira-local --output jira-local src/cli.ts",
     "publish:check": "deno publish --dry-run --allow-dirty",
     "publish": "deno publish"
   },
@@ -32,6 +32,14 @@
     "erasableSyntaxOnly": true,
     "useUnknownInCatchVariables": true,
     "noImplicitOverride": true
+  },
+  "compile": {
+    "permissions": {
+      "net": true,
+      "read": true,
+      "write": true,
+      "env": true
+    }
   },
   "nodeModulesDir": "none"
 }
