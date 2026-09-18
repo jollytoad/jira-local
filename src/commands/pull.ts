@@ -6,6 +6,7 @@
  */
 
 import { Command, ValidationError } from "@cliffy/command";
+import process from "node:process";
 import { resolve } from "node:path";
 
 import { reconcileCategories } from "../categories.ts";
@@ -91,7 +92,7 @@ export function pullCommand() {
 }
 
 export async function runPull(cli: PullOptions): Promise<void> {
-  const cwd = Deno.cwd();
+  const cwd = process.cwd();
   const outDir = resolve(cwd, cli.out);
 
   const config = await getConfig(outDir);

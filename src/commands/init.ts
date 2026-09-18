@@ -10,7 +10,8 @@
 
 import { Command, ValidationError } from "@cliffy/command";
 import { Input, Select } from "@cliffy/prompt";
-import { mkdir, writeFile } from "node:fs/promises";
+import process from "node:process";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 
 import { configPath, getConfig } from "../config.ts";
@@ -81,14 +82,14 @@ export async function runInit(
   out: string,
   options: InitOptions,
 ): Promise<void> {
-  const outDir = resolve(Deno.cwd(), out);
+  const outDir = resolve(process.cwd(), out);
   const config = configPath(outDir);
 
   await mkdir(dirname(config), { recursive: true });
 
   let isFile = false;
   try {
-    isFile = (await Deno.stat(config)).isFile;
+    isFile = (await stat(config)).isFile();
   } catch {
     isFile = false;
   }
@@ -99,7 +100,7 @@ export async function runInit(
     );
   }
 
-  const interactive = !options.yes && Deno.stdin.isTerminal();
+  const interactive = !options.yes && process.stdin.isTTY === true;
   if (!options.yes && !interactive) warnNoTty();
 
   const connection: Connection = {
@@ -291,7 +292,7 @@ function fieldTemplate(
 
 function display(path: string): string {
   try {
-    const rel = relative(Deno.cwd(), path);
+    const rel = relative(process.cwd(), path);
     return rel === "" ? path : rel;
   } catch {
     return path;

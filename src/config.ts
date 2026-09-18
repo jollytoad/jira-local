@@ -10,8 +10,9 @@
  * category names or columns that are not front-matter field names — raises a
  * `ConfigError` and aborts the run before any writing happens.
  */
-
+import process from "node:process";
 import { stat } from "node:fs/promises";
+
 import { dirname, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { ConfigError } from "./errors.ts";
@@ -157,7 +158,7 @@ function displayOf(value: unknown): string {
 /** The config path relative to the CWD, for friendlier error messages. */
 function where(path: string): string {
   try {
-    const rel = relative(Deno.cwd(), path);
+    const rel = relative(process.cwd(), path);
     return rel === "" ? path : rel;
   } catch {
     return path;

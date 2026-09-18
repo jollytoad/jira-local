@@ -9,6 +9,8 @@
  * Run via `deno task jira-local pull` (from the project root). Each command
  * lives in `commands/`. */
 
+import process from "node:process";
+
 import { Command } from "@cliffy/command";
 
 import { categorizeCommand } from "./commands/categorize.ts";
@@ -37,7 +39,10 @@ async function main(): Promise<number> {
     await command.parse();
     return 0;
   } catch (error) {
-    if (error instanceof Deno.errors.NotCapable) {
+    const denied = error instanceof Error &&
+      (error.name === "NotCapable" ||
+        (error as { code?: unknown }).code === "ERR_ACCESS_DENIED");
+    if (denied) {
       console.error(
         `error: ${error.message}\n` +
           "Run with the required permissions, e.g.:\n" +
@@ -70,5 +75,5 @@ async function main(): Promise<number> {
 }
 
 if (import.meta.main) {
-  Deno.exit(await main());
+  process.exit(await main());
 }
