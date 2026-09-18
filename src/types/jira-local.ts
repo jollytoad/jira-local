@@ -1,7 +1,7 @@
 /**
  * Types of the post-conversion data: the local issue file as written to disk
  * (front matter plus raw body) and its field-name vocabulary, which doubles
- * as the vocabulary for category folders and index columns (see
+ * as the vocabulary for category names and index columns (see
  * `types/config.ts` and `config.ts`), plus the pull-pipeline shapes
  * (rendered issue, local file records, counters, watermark state).
  */
@@ -28,7 +28,7 @@ export interface IssueFrontMatter {
 /** A front-matter field name, usable as an index table column. */
 export type IndexColumn = keyof IssueFrontMatter;
 
-/** A category folder name: the front-matter field it is derived from. */
+/** A category name: the front-matter field it is derived from. */
 export type FrontMatterKey = keyof IssueFrontMatter;
 
 /** The parsed content of an issue file: typed front matter plus raw body. */

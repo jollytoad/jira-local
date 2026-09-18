@@ -178,41 +178,38 @@ deno task ok                          # deno fmt && deno lint && deno check
 
 ### Files on disk
 
-| Path                        | What it is                                                                                                                                                                                                                   |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.jira/issues/all/<KEY>.md` | One markdown file per issue (regenerated, safe to delete)                                                                                                                                                                    |
-| `.jira/issues/<category>/…` | Symlinks into `all/`, e.g. `status/Done/`, `assignee/`, `labels/` or `parent/<KEY>/…` (every folder here except `all/` is managed; done issues are status-only; folder names mirror the front-matter field they derive from) |
-| `.jira/.state.json`         | Incremental watermark + timezone + project (delete it to force a full pull)                                                                                                                                                  |
-| `.jira/.config.ts`          | Connection settings and optional config: which category folders and index pages are created; created by `init` (not committed; missing file = defaults)                                                                      |
-| `.env`                      | Optional: values for the `process.env.*` reads in `.jira/.config.ts`, loaded by the `deno task` entries via `--env-file` (not committed; the tool never reads env vars itself)                                               |
+| Path                         | What it is                                                                                                                                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.jira/issues/all/<KEY>.md`  | One markdown file per issue (regenerated, safe to delete)                                                                                                                                                                |
+| `.jira/issues/<category>.md` | Index pages, e.g. `status/Backlog.md`, `assignee/`, `labels/` or `parent/<KEY>.md` (every category here other than `all/` is managed; done issues are status-only; names mirror the front-matter field they derive from) |
+| `.jira/.state.json`          | Incremental watermark + timezone + project (delete it to force a full pull)                                                                                                                                              |
+| `.jira/.config.ts`           | Connection settings and optional config: which categories get index pages; created by `init` (not committed; missing file = defaults)                                                                                    |
+| `.env`                       | Optional: values for the `process.env.*` reads in `.jira/.config.ts`, loaded by the `deno task` entries via `--env-file` (not committed; the tool never reads env vars itself)                                           |
 
 ### Configuration
 
 `.jira/.config.ts` (a sibling of `issues/`, created by `init`) holds the
 connection fields (`site`, `project`, `email`, `token` — used by pull, ignored
-by categorise) and optionally restricts what the categoriser materialises. It is
-a TypeScript module exporting a `config` object; the category fields are
-optional and a missing file means "everything, with default columns":
+by categorise) and optionally restricts which index pages the categoriser
+materialises. It is a TypeScript module exporting a `config` object; the
+category field is optional and a missing file means "index pages everywhere,
+with default columns":
 
 ```ts
 import type { JiraLocalConfig } from "../src/types.ts";
 
 export const config: JiraLocalConfig = {
-  // Top-level category folders to create, named after the front-matter field
-  // they derive from; unlisted ones are cleaned up.
-  categoryFolders: ["status", "assignee"],
-  // Index pages per top-level folder, with table columns (front-matter
-  // field names). Independent of `categoryFolders`: a folder listed here
-  // but not in `categoryFolders` gets only its index pages (no symlink
-  // folders). Folders in neither list get nothing; omit `categoryIndex`
-  // entirely for index pages everywhere with `["key", "summary"]` columns.
+  // Index pages per top-level category, with table columns (front-matter
+  // field names). Categories not listed here get nothing; omit
+  // `categoryIndex` entirely for index pages everywhere with
+  // `["key", "summary"]` columns.
   categoryIndex: {
     status: ["key", "summary", "assignee"],
   },
 };
 ```
 
-A malformed config (folder names or columns that aren't front-matter field
+A malformed config (category names or columns that aren't front-matter field
 names) aborts the run with a validation error before anything is written.
 
 ## Semantics and caveats
@@ -247,10 +244,10 @@ Source lives in `src/`:
 | `render.ts`              | Issue → markdown (front matter, description, comments)                                                                          |
 | `adf-to-markdown.ts`     | Atlassian Document Format → markdown converter                                                                                  |
 | `pull.ts`                | Per-issue create/update/unchanged decisions, pruning, progress lines                                                            |
-| `categorize.ts`          | The single `categorizeIssue` function: front matter + body → category strings (`/` nests folders)                               |
-| `categories.ts`          | Reconciles those categories into symlink folders next to `all/`                                                                 |
-| `category-indexes.ts`    | Renders per-category index tables (`<folder>.md` next to each category folder)                                                  |
-| `config.ts`              | Loads/validates `.jira/.config.ts` (connection fields, category folders + index pages), cached `getConfig`                      |
+| `categorize.ts`          | The single `categorizeIssue` function: front matter + body → category strings (`/` nests categories)                            |
+| `categories.ts`          | Reconciles those categories into index pages next to `all/`                                                                     |
+| `category-indexes.ts`    | Renders per-category index tables (`<category>.md`, one page per category)                                                      |
+| `config.ts`              | Loads/validates `.jira/.config.ts` (connection fields, index pages), cached `getConfig`                                         |
 | `state.ts`               | Incremental watermark load/save                                                                                                 |
 | `constants.ts`           | Shared runtime constants (front-matter field names for config validation)                                                       |
 | `types.ts`               | Types only (interfaces/type aliases)                                                                                            |

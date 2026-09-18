@@ -7,10 +7,8 @@
  * config themselves instead of it being threaded through parameters. A missing
  * config file is not an error: the defaults (no filtering) apply. A malformed
  * config — bad export, wrong shapes, connection fields that are not strings,
- * folder names or columns that are not front-matter field names — raises a
- * `ConfigError` and aborts the run before any writing happens. The two
- * category fields are independent: `categoryIndex` may list folders that
- * `categoryFolders` does not (index pages without symlink folders).
+ * category names or columns that are not front-matter field names — raises a
+ * `ConfigError` and aborts the run before any writing happens.
  */
 
 import { stat } from "node:fs/promises";
@@ -85,27 +83,6 @@ function validate(
   const email = stringField(raw, "email", label);
   const token = stringField(raw, "token", label);
 
-  let categoryFolders: readonly FrontMatterKey[] | undefined;
-  if (raw.categoryFolders !== undefined) {
-    const value = raw.categoryFolders;
-    if (!Array.isArray(value)) {
-      throw new ConfigError(
-        `${label}: categoryFolders must be an array of front-matter field ` +
-          `names (${FRONT_MATTER_KEYS.join(", ")})`,
-      );
-    }
-    categoryFolders = value.map((entry, index) => {
-      if (!isFrontMatterKey(entry)) {
-        throw new ConfigError(
-          `${label}: categoryFolders[${index}] is ${displayOf(entry)} — ` +
-            "must be a front-matter field name: " +
-            FRONT_MATTER_KEYS.join(", "),
-        );
-      }
-      return entry;
-    });
-  }
-
   let categoryIndex:
     | Partial<Record<FrontMatterKey, readonly IndexColumn[]>>
     | undefined;
@@ -115,34 +92,34 @@ function validate(
       throw new ConfigError(`${label}: categoryIndex must be an object`);
     }
     const entries: Partial<Record<FrontMatterKey, readonly IndexColumn[]>> = {};
-    for (const [folder, columns] of Object.entries(value)) {
-      if (!isFrontMatterKey(folder)) {
+    for (const [category, columns] of Object.entries(value)) {
+      if (!isFrontMatterKey(category)) {
         throw new ConfigError(
-          `${label}: categoryIndex key "${folder}" is not a front-matter ` +
+          `${label}: categoryIndex key "${category}" is not a front-matter ` +
             `field name — must be one of: ${FRONT_MATTER_KEYS.join(", ")}`,
         );
       }
       if (!Array.isArray(columns) || columns.length === 0) {
         throw new ConfigError(
-          `${label}: categoryIndex.${folder} must be a non-empty array of ` +
+          `${label}: categoryIndex.${category} must be a non-empty array of ` +
             "column names (omit the key to disable that index)",
         );
       }
       for (const column of columns) {
         if (!isIndexColumn(column)) {
           throw new ConfigError(
-            `${label}: categoryIndex.${folder} has unknown column ` +
+            `${label}: categoryIndex.${category} has unknown column ` +
               `"${String(column)}" — must be one of: ` +
               FRONT_MATTER_KEYS.join(", "),
           );
         }
       }
-      entries[folder] = columns;
+      entries[category] = columns;
     }
     categoryIndex = entries;
   }
 
-  return { site, project, email, token, categoryFolders, categoryIndex };
+  return { site, project, email, token, categoryIndex };
 }
 
 /** Read an optional string field, erroring on any other type. */
@@ -161,7 +138,7 @@ function stringField(
   return value;
 }
 
-/** Check whether a value is a front-matter field name (folder/column vocabulary). */
+/** Check whether a value is a front-matter field name (category/column vocabulary). */
 export function isFrontMatterKey(value: unknown): value is FrontMatterKey {
   return (
     typeof value === "string" &&

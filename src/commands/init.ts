@@ -267,15 +267,12 @@ export const config: JiraLocalConfig = {
   email: ${fieldTemplate(connection.email, "process.env.JIRA_EMAIL")},
   token: ${fieldTemplate(connection.token, "process.env.JIRA_API_TOKEN")},
 
-  // Category folders to materialise as symlink folders:
-  categoryFolders: [],
-
-  // Index pages, per folder (omit for defaults everywhere):
+  // Index pages, per category (omit for defaults everywhere):
   categoryIndex: {
-    assignee: ["key", "summary"],
-    labels: ["key", "summary"],
-    parent: ["key", "summary"],
-    status: ["key", "summary"],
+    assignee: ["type", "key", "summary", "status"],
+    labels: ["type", "key", "summary", "status"],
+    parent: ["type", "key", "summary", "status"],
+    status: ["type", "key", "summary"],
   },
 };
 `;

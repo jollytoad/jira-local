@@ -20,11 +20,9 @@ import type { FrontMatterKey, IndexColumn } from "./jira-local.ts";
  * `categorize`; flags beat config values. Since the config is a TypeScript
  * module, it may read environment variables itself
  * (`token: process.env.JIRA_API_TOKEN`) — the tool never reads env vars
- * directly. Folder names are the front-matter field names they are derived
+ * directly. Category names are the front-matter field names they are derived
  * from ("status", "assignee", "labels", "parent"); other front-matter keys
- * are valid but inert (the categoriser never produces a folder for them).
- * The two category fields are independent: a folder can have index pages
- * without materialised symlink folders, and vice versa.
+ * are valid but inert (the categoriser never produces a category for them).
  */
 export interface JiraLocalConfig {
   /**
@@ -48,19 +46,10 @@ export interface JiraLocalConfig {
   token?: string;
 
   /**
-   * Top-level category folders to materialise as symlink folders (first
-   * segment of a category string, e.g. "status" for "status/Done"). Omit to
-   * create every category the categoriser produces. Does not affect index
-   * pages (see `categoryIndex`).
-   */
-  categoryFolders?: readonly FrontMatterKey[];
-
-  /**
-   * Index pages to create, per top-level category folder, with the table
-   * columns to render. Only listed folders get index pages — independent of
-   * `categoryFolders`, so a folder can be indexed without its symlink
-   * folders. Omit the whole field for index pages everywhere with the
-   * default columns.
+   * Index pages to create, per top-level category (front-matter field name),
+   * with the table columns to render. Only listed categories get index
+   * pages. Omit the whole field for index pages everywhere with the default
+   * columns.
    */
   categoryIndex?: Partial<Record<FrontMatterKey, readonly IndexColumn[]>>;
 }

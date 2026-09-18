@@ -40,8 +40,8 @@ export interface PullOptions {
 export function pullCommand() {
   return new Command()
     .description(
-      "Pull Jira issues into a flat folder of <KEY>.md files and maintain\n" +
-        "categorised views of symlinks.",
+      "Pull Jira issues into a flat folder of <KEY>.md files and generate\n" +
+        "categorised index pages.",
     )
     .option(
       "--site <url:string>",
@@ -211,7 +211,8 @@ export async function runPull(cli: PullOptions): Promise<void> {
     await pruneDeleted(local, seenKeys, outDir, cli.dryRun, counters);
   }
 
-  // Refresh category folders (cheap: re-categorises everything in `all/`).
+  // Refresh the category index pages (cheap: re-categorises everything in
+  // `all/`).
   const categories = await reconcileCategories(local, outDir, cli.dryRun);
 
   const next: PullState = {
@@ -229,8 +230,6 @@ export async function runPull(cli: PullOptions): Promise<void> {
     `${counters.updated} updated`,
     `${counters.deleted} deleted`,
     `${counters.unchanged} unchanged`,
-    `${categories.linksCreated + categories.linksRetargeted} links changed`,
-    `${categories.linksRemoved} links removed`,
     `${categories.indexesCreated + categories.indexesUpdated} indexes changed`,
     `${categories.indexesRemoved} indexes removed`,
   ];

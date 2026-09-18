@@ -38,9 +38,9 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
   field-name vocabulary, and pull-pipeline shapes: rendered issue, local file
   records, counters, state), and `types/config.ts` (the `JiraLocalConfig` user
   config).
-- The `pull`/`categorize` tasks use unscoped `--allow-write` because Deno
-  refuses `symlink()` under path-scoped grants. The code itself only writes
-  inside `.jira`.
+- The `pull`/`categorize` tasks use unscoped `--allow-write` (a legacy of the
+  removed symlink-folder feature; the grants also have to cover a custom
+  `--out`). The code itself only writes inside `.jira`.
 
 ## CLI
 
@@ -94,30 +94,28 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
   in `config.ts` (`.jira/.config.ts`, loaded lazily via `getConfig`).
 - Categories: `categorize.ts` holds the single `categorizeIssue` function
   (front-matter object + raw body → category strings, `/` = nesting);
-  `categories.ts` reconciles it into symlink folders next to `all/`
-  (`.jira/issues/status/<status>/<KEY>-<summary>.md` plus `assignee/`, `labels/`
-  (one folder per label, `/` in a label nests) and `parent/<key>` when the issue
-  has one; unassigned issues go to `assignee/Unassigned`; issues with status
-  category "Done" are status-only and appear nowhere else). Folder names mirror
-  the front-matter field each category derives from. Every non-hidden directory
-  under `.jira/issues/` other than `all/` is treated as managed, so stale
-  folders, are cleaned up automatically. Runs on every pull and via
-  `deno task jira-local categorize` (offline).
+  `categories.ts` reconciles it into index pages next to `all/`
+  (`status/<status>.md` plus `assignee/`, `labels/` (one page per label, `/` in
+  a label nests) and `parent/<key>` when the issue has one; unassigned issues go
+  to `assignee/Unassigned`; issues with status category "Done" are status-only
+  and appear nowhere else). Category names mirror the front-matter field each
+  category derives from. Every non-hidden directory under `.jira/issues/` other
+  than `all/` is treated as managed, so stale index pages are cleaned up
+  automatically. Symlink category folders are no longer created (removed
+  feature); leftovers are ignored — deleting `.jira/` is the documented way to
+  clear them. Runs on every pull and via `deno task jira-local categorize`
+  (offline).
 - Index pages: `category-indexes.ts` renders a markdown table per leaf category
-  (`.jira/issues/status/Backlog.md` next to the folder); columns come from
-  `.jira/.config.ts`'s `categoryIndex` (default `DEFAULT_INDEX_COLUMNS`: `key`
-  links into `all/`, any other front-matter field renders as a column), rows
-  sorted by key. Written only when content differs; removed when their category
-  goes stale or loses its index entry.
+  (`.jira/issues/status/Backlog.md`); columns come from `.jira/.config.ts`'s
+  `categoryIndex` (default `DEFAULT_INDEX_COLUMNS`: `key` links into `all/`, any
+  other front-matter field renders as a column), rows sorted by key. Written
+  only when content differs; removed when their category goes stale or loses its
+  index entry.
 - `.jira/.config.ts` (sibling of `issues/`, gitignored, `export const config`):
-  optional `categoryFolders` allowlist (top-level folders, typed as front-matter
-  field names; unlisted ones are cleaned up as stale, valid-but-unproduced keys
-  are inert) and `categoryIndex` map (folder → columns, allowlist — omitted
-  folders get no index; omit the whole field for defaults everywhere), plus the
-  connection fields described under CLI. The two category are independent: an
-  index entry without `categoryFolders` membership yields index-only categories
-  (leaf `.md` pages, no symlink folders). Keys and columns are front-matter
-  field names, enforced at type-check and runtime. Loaded/validated by
-  `config.ts`'s cached `getConfig`; missing file = defaults.
+  optional `categoryIndex` map (category → columns, allowlist — omitted
+  categories get no index; omit the whole field for index pages everywhere with
+  the default columns), plus the connection fields described under CLI. Keys and
+  columns are front-matter field names, enforced at type-check and runtime.
+  Loaded/validated by `config.ts`'s cached `getConfig`; missing file = defaults.
 - Incremental pull keys off Jira's `updated` timestamps (account timezone), not
   the local clock.

@@ -1,12 +1,12 @@
 /**
- * Category index pages: for each leaf category folder the reconciler manages
- * (e.g. `.jira/issues/status/Backlog/`), a sibling markdown file
- * `status/Backlog.md` listing that category's issues as a markdown table.
+ * Category index pages: for each leaf category the reconciler manages
+ * (e.g. `.jira/issues/status/Backlog.md`), a markdown file listing that
+ * category's issues as a markdown table.
  *
- * Which folders get an index page, and with which columns, is configured in
- * `.jira/.config.ts` (see `config.ts`): a map from top-level category folder
- * to front-matter column names. `key` renders as a markdown link into the
- * flat `all/` store, any other column renders the raw front-matter value
+ * Which categories get an index page, and with which columns, is configured
+ * in `.jira/.config.ts` (see `config.ts`): a map from top-level category
+ * name to front-matter column names. `key` renders as a markdown link into
+ * the flat `all/` store, any other column renders the raw front-matter value
  * (arrays joined with ", "). Rows are sorted by issue key. The columns here
  * default to `DEFAULT_INDEX_COLUMNS` when the config omits `categoryIndex`.
  */
@@ -23,7 +23,7 @@ export const DEFAULT_INDEX_COLUMNS: readonly IndexColumn[] = [
 export interface IndexRow {
   key: string;
   frontMatter: IssueFrontMatter;
-  /** Posix-relative path from the index folder to `all/<KEY>.md`. */
+  /** Posix-relative path from the index page to `all/<KEY>.md`. */
   targetRel: string;
 }
 

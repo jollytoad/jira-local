@@ -26,8 +26,8 @@ async function main(): Promise<number> {
   const command = new Command()
     .name("jira-local")
     .description(
-      "Pull Jira issues into a flat folder of <KEY>.md files and maintain\n" +
-        "categorised views of symlinks.",
+      "Pull Jira issues into a flat folder of <KEY>.md files and generate\n" +
+        "categorised index pages.",
     )
     .command("pull", pullCommand())
     .command("categorize", categorizeCommand())
