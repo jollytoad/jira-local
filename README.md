@@ -72,9 +72,11 @@ url: "https://yoursite.atlassian.net/browse/EXAMPLE-123"
 ### Homebrew
 
 Prebuilt binaries for macOS (Apple Silicon and Intel) and Linux (x86_64 and
-arm64), no Deno install needed:
+arm64), no Deno install needed. The formula lives in this repo (not a
+`homebrew-*` tap repo), so tap it explicitly with the repo URL first:
 
 ```sh
+brew tap jollytoad/jira-local https://github.com/jollytoad/jira-local
 brew install jollytoad/jira-local/cli
 ```
 

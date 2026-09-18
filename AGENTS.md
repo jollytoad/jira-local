@@ -24,11 +24,13 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
   `aarch64-unknown-linux-gnu`) via `deno compile -P` (permissions from
   `compile.permissions` in `deno.json`), uploads each as a versioned tarball
   `jira-local-v<version>-<target>.tar.gz` to the release that triggered the run,
-  then regenerates `Formula/cli.rb` (Homebrew formula; installs via
-  `brew install jollytoad/jira-local/cli`) with the new version and SHA256s and
-  commits it to `main` as `github-actions[bot]` — that push requires the tag to
-  point at current `main`. To release, bump `version` in `deno.json`, then
-  create/publish a GitHub release tagged `v<version>`.
+  then regenerates `Formula/cli.rb` (Homebrew formula; install via
+  `brew tap jollytoad/jira-local https://github.com/jollytoad/jira-local` then
+  `brew install jollytoad/jira-local/cli` — the formula lives in this repo, not
+  a `homebrew-*` tap repo, so the tap needs the explicit URL) with the new
+  version and SHA256s and commits it to `main` as `github-actions[bot]` — that
+  push requires the tag to point at current `main`. To release, bump `version`
+  in `deno.json`, then create/publish a GitHub release tagged `v<version>`.
 - `src/types/` hold types only (interfaces/type aliases) — never runtime values.
   Constants live in `src/constants.ts`. Types are split by domain:
   `types/adf.ts` (ADF documents), `types/jira-raw.ts` (raw Jira REST payloads
