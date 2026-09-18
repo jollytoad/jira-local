@@ -1,13 +1,12 @@
 import { stringify } from "@std/yaml/stringify";
 import { adfToMarkdown } from "./adf-to-markdown.ts";
-import type { IssueFileContent, IssueFrontMatter } from "./types/jira-local.ts";
+import type {
+  IssueFileContent,
+  IssueFrontMatter,
+  PulledIssue,
+} from "./types/jira-local.ts";
 import type { JiraIssue, JiraIssueRef } from "./types/jira-raw.ts";
 import { displayName, isoDate } from "./util.ts";
-
-export interface RenderedIssue {
-  /** Full markdown file content. */
-  markdown: string;
-}
 
 /** Convert a Jira issue into its parsed file representation. */
 export function jiraIssueToContent(
@@ -83,13 +82,12 @@ export function renderIssueFile(content: IssueFileContent): string {
   return sections.join("\n\n").replace(/\s+$/, "") + "\n";
 }
 
-/** Build the full markdown file content of a single issue. */
-export function renderIssue(
-  issue: JiraIssue,
-  siteUrl: string,
-): RenderedIssue {
-  const content = jiraIssueToContent(issue, siteUrl);
-  return { markdown: renderIssueFile(content) };
+/** Build the final `PulledIssue` record from an issue file's parsed content. */
+export function contentToPulledIssue(content: IssueFileContent): PulledIssue {
+  return {
+    key: content.frontMatter.key,
+    markdown: renderIssueFile(content),
+  };
 }
 
 /**

@@ -7,10 +7,8 @@ import {
   JiraSearchMismatchError,
   RateLimitError,
 } from "./errors.ts";
-import { renderIssue } from "./render.ts";
 import type { AdfNode } from "./types/adf.ts";
 import type { Credentials, JiraComment, JiraIssue } from "./types/jira-raw.ts";
-import type { PulledIssue } from "./types/jira-local.ts";
 import { pool, progress } from "./util.ts";
 
 const SEARCH_PAGE_SIZE = 100;
@@ -153,30 +151,29 @@ export async function countIssues(
 
 /**
  * Fetch every issue in `project` (all statuses, optionally limited to
- * issues updated after `updatedSince`) together with its comments, rendered
- * and ready for the pull step. Reports live progress to stderr.
+ * issues updated after `updatedSince`) and stream them as raw `JiraIssue`s
+ * with a complete comment list attached to `fields.comment`.
  *
  * Streams: the next search page starts downloading while the current
- * page's issues are rendered (comment fetches in parallel) and yielded.
+ * page's issues are completed (comment fetches in parallel) and yielded.
  *
  * `sawUpdated` (when provided) is called with the raw `updated` timestamp
  * of every fetched issue, including the newest per page — used by the
  * caller to advance the incremental watermark on clean completion.
  */
-export async function* streamIssues(
+export async function* fetchJiraIssues(
   creds: Credentials,
   project: string,
   options: {
     updatedSince?: string;
     sawUpdated?: (updated: string) => void;
   } = {},
-): AsyncGenerator<PulledIssue> {
+): AsyncGenerator<JiraIssue> {
   const jql = `project = ${jqlQuote(project)}${
     options.updatedSince ? ` AND updated > "${options.updatedSince}"` : ""
   } ORDER BY key ASC`;
 
   let pageCount = 0;
-  let renderedTotal = 0;
   let fallbackCount = 0;
 
   const fetchPage = (pageToken?: string): Promise<SearchResponse> =>
@@ -202,7 +199,7 @@ export async function* streamIssues(
     pageCount++;
     const issues: JiraIssue[] = page.issues ?? [];
     progress(`fetched ${issues.length} issues (${pageCount} page(s))`);
-    // Begin the next page before rendering this one.
+    // Begin the next page before completing this one.
     const next: Promise<SearchResponse> | undefined = page.nextPageToken
       ? fetchPage(page.nextPageToken)
       : undefined;
@@ -214,59 +211,39 @@ export async function* streamIssues(
       }
     }
 
-    const rendered: PulledIssue[] = await pool(
+    const complete: JiraIssue[] = await pool(
       issues,
       COMMENT_CONCURRENCY,
       async (issue: JiraIssue) => {
-        let comments = completeInlineComments(issue);
-        let fallbackFetched = false;
-        if (!comments) {
-          comments = await fetchAllComments(creds, issue.key);
-          fallbackFetched = true;
+        if (!hasAllComments(issue)) {
+          const comments = await fetchAllComments(creds, issue.key);
+          issue.fields.comment = { total: comments.length, comments };
+          fallbackCount++;
         }
-        // Merge the complete comment list into the issue so rendering sees
-        // one uniform shape.
-        issue.fields.comment = { total: comments.length, comments };
-        const result = renderIssue(issue, creds.site);
-        renderedTotal++;
-        if (fallbackFetched) fallbackCount++;
-        if (renderedTotal % 25 === 0) {
-          progress(
-            `rendered ${renderedTotal} issues${
-              fallbackCount > 0
-                ? ` (${fallbackCount} needed comment fallback fetches)`
-                : ""
-            }`,
-          );
-        }
-        return { key: issue.key, markdown: result.markdown };
+        return issue;
       },
     );
-    for (const issue of rendered) yield issue;
+    for (const issue of complete) yield issue;
     pending = next;
   }
   if (fallbackCount > 0) {
     progress(
-      `rendered ${renderedTotal} issues (done) — ${fallbackCount} used per-issue comment fallback`,
+      `fetched ${pageCount} page(s) (done) — ${fallbackCount} issues used per-issue comment fallback`,
     );
-  } else {
-    progress(`rendered ${renderedTotal} issues (done, all inline)`);
   }
 }
 
 /**
- * Use the comments embedded in the search payload when the endpoint
- * returned the complete list (total matches count). Returns undefined when
- * comments are missing, truncated, or the total is unknown — the caller
- * then re-fetches them per issue.
+ * Whether the comments embedded in the search payload are the complete
+ * list: present, and matching the total when that is known.
  */
-function completeInlineComments(issue: JiraIssue): JiraComment[] | undefined {
-  const comment = issue.fields.comment;
-  const inline = comment?.comments;
-  if (!inline) return undefined;
-  const total = comment.total;
-  if (typeof total !== "number") return inline.length > 0 ? undefined : [];
-  return inline.length >= total ? inline : undefined;
+function hasAllComments(
+  issue: JiraIssue,
+): issue is JiraIssue & { fields: { comment: { comments: JiraComment[] } } } {
+  const inline = issue.fields.comment?.comments?.length;
+  const total = issue.fields.comment?.total;
+  return inline !== undefined &&
+    (typeof total !== "number" ? inline === 0 : inline >= total);
 }
 
 async function fetchAllComments(

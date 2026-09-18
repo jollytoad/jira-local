@@ -12,12 +12,13 @@ import { reconcileCategories } from "../categories.ts";
 import { getConfig } from "../config.ts";
 import {
   countIssues,
+  fetchJiraIssues,
   preflightAuth,
   preflightProject,
-  streamIssues,
   validateFetchResult,
 } from "../jira.ts";
 import { pruneDeleted, pullIssue, scanLocal } from "../pull.ts";
+import { contentToPulledIssue, jiraIssueToContent } from "../render.ts";
 import { loadState, saveState, statePath } from "../state.ts";
 import type { Credentials } from "../types/jira-raw.ts";
 import type { PullCounters, PullState } from "../types/jira-local.ts";
@@ -168,7 +169,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
   let maxUpdated: string | undefined = previous?.maxUpdated;
 
   for await (
-    const issue of streamIssues(creds, project, {
+    const issue of fetchJiraIssues(creds, project, {
       updatedSince,
       sawUpdated: (updated: string) => {
         if (maxUpdated === undefined || updated > maxUpdated) {
@@ -177,9 +178,16 @@ export async function runPull(cli: PullOptions): Promise<void> {
       },
     })
   ) {
-    seenKeys.add(issue.key);
+    // Transform the raw issue into its parsed file content, then into the
+    // final markdown record.
+    const content = jiraIssueToContent(issue, creds.site);
+    const pulled = contentToPulledIssue(content);
+    seenKeys.add(pulled.key);
     issueCount++;
-    await pullIssue(issue, local, outDir, cli.dryRun, counters, undefined);
+    if (issueCount % 25 === 0) {
+      progress(`rendered ${issueCount} issues`);
+    }
+    await pullIssue(pulled, local, outDir, cli.dryRun, counters, undefined);
   }
 
   if (issueCount === 0 && !incremental) {
