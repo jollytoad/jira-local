@@ -9,7 +9,8 @@ import {
 } from "./errors.ts";
 import type { AdfNode } from "./types/adf.ts";
 import type { Credentials, JiraComment, JiraIssue } from "./types/jira-raw.ts";
-import { pool, progress } from "./util.ts";
+import { pool } from "./util.ts";
+import { progress } from "./progress.ts";
 
 const SEARCH_PAGE_SIZE = 100;
 const COMMENT_PAGE_SIZE = 100;
@@ -198,7 +199,7 @@ export async function* fetchJiraIssues(
     const page: SearchResponse = await pending;
     pageCount++;
     const issues: JiraIssue[] = page.issues ?? [];
-    progress(`fetched ${issues.length} issues (${pageCount} page(s))`);
+    progress({ msg: `fetched ${issues.length} issues (${pageCount} page(s))` });
     // Begin the next page before completing this one.
     const next: Promise<SearchResponse> | undefined = page.nextPageToken
       ? fetchPage(page.nextPageToken)
@@ -227,9 +228,10 @@ export async function* fetchJiraIssues(
     pending = next;
   }
   if (fallbackCount > 0) {
-    progress(
-      `fetched ${pageCount} page(s) (done) — ${fallbackCount} issues used per-issue comment fallback`,
-    );
+    progress({
+      msg:
+        `fetched ${pageCount} page(s) (done) — ${fallbackCount} issues used per-issue comment fallback`,
+    });
   }
 }
 

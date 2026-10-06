@@ -13,6 +13,12 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
 
 - Bare invocation shows help.
 
+- Keep the code cross-runtime: no `Deno.*` globals, use the `node:` builtins
+  (`node:fs/promises`, `node:path`, `node:process`, `node:url`) that the
+  codebase already imports throughout, so a non-Deno runtime stays an option
+  later. This is a hard filter on dependencies too — reject any package that
+  reaches for `Deno.*` internally (it can't be shimmed), and prefer implementing
+  small things here over adding a dependency for them.
 - Deno 2.x, four runtime dependencies (`@cliffy/command` for the CLI and
   `@cliffy/prompt` for init's interactive prompts, `@std/front-matter`,
   `@std/yaml` via `imports` in `deno.json`, pinned by `deno.lock` — commit it).

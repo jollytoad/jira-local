@@ -49,7 +49,7 @@ import type {
   LocalIssueFile,
 } from "./types/jira-local.ts";
 import type { JiraLocalConfig } from "./types/config.ts";
-import { progress } from "./util.ts";
+import { progress } from "./progress.ts";
 
 export interface CategoryCounters {
   indexesCreated: number;
@@ -113,10 +113,10 @@ export async function reconcileCategories(
     }
     if (existing === undefined) {
       counters.indexesCreated++;
-      progress(`index     ${rel} (created)`);
+      progress({ msg: `index     ${rel} (created)` });
     } else {
       counters.indexesUpdated++;
-      progress(`index     ${rel} (updated)`);
+      progress({ msg: `index     ${rel} (updated)` });
     }
   }
 
@@ -137,7 +137,7 @@ export async function reconcileCategories(
     if (!exists) continue;
     if (!dryRun) await rm(indexPath);
     counters.indexesRemoved++;
-    progress(`index     ${rel} (removed)`);
+    progress({ msg: `index     ${rel} (removed)` });
   }
 
   return counters;

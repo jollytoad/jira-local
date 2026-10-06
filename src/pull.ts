@@ -11,7 +11,7 @@ import type {
   PullCounters,
   PulledIssue,
 } from "./types/jira-local.ts";
-import { progress } from "./util.ts";
+import { progress } from "./progress.ts";
 
 const ISSUE_FILE_PATTERN = /^([A-Za-z][A-Za-z0-9]*-\d+)\.md$/;
 
@@ -79,13 +79,13 @@ export async function pullIssue(
   bump(counters, action);
   // Unchanged issues stay silent: only report actual work.
   if (action !== "unchanged") {
-    progress(
-      `${action.padEnd(9)} ${relPath}${
+    progress({
+      msg: `${action.padEnd(9)} ${relPath}${
         total !== undefined
           ? ` [${counters.created + counters.updated}/${total}]`
           : ""
       }`,
-    );
+    });
   }
   return action;
 }
@@ -109,9 +109,11 @@ export async function pruneDeleted(
       counters.deleted++;
       if (!dryRun) {
         await rm(file.absPath);
-        progress(`delete     ${file.relPath} (deleted in Jira)`);
+        progress({ msg: `delete     ${file.relPath} (deleted in Jira)` });
       } else {
-        progress(`delete     ${file.relPath} (deleted in Jira, dry-run)`);
+        progress({
+          msg: `delete     ${file.relPath} (deleted in Jira, dry-run)`,
+        });
       }
     }
   }

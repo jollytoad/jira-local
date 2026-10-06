@@ -48,12 +48,6 @@ export function pluralise(n: number, one: string, many: string): string {
   return n === 1 ? `${n} ${one}` : `${n} ${many}`;
 }
 
-/** Log a progress line to stderr with a local timestamp. */
-export function progress(message: string): void {
-  const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
-  console.error(`[${time}] ${message}`);
-}
-
 /** Human-readable elapsed time since `started` (ms). */
 export function elapsed(started: number): string {
   const secs = (Date.now() - started) / 1000;

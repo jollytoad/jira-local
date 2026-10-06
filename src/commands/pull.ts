@@ -24,7 +24,8 @@ import { loadState, saveState, statePath } from "../state.ts";
 import type { Credentials } from "../types/jira-raw.ts";
 import type { PullCounters, PullState } from "../types/jira-local.ts";
 import type { JiraLocalConfig } from "../types/config.ts";
-import { elapsed, pluralise, progress } from "../util.ts";
+import { elapsed, pluralise } from "../util.ts";
+import { progress } from "../progress.ts";
 
 export interface PullOptions {
   site?: string;
@@ -129,12 +130,12 @@ export async function runPull(cli: PullOptions): Promise<void> {
       cli.dryRun ? " (dry-run)" : ""
     }...`,
   );
-  progress("checking credentials...");
+  progress({ msg: "checking credentials..." });
   const { timeZone } = await preflightAuth(creds);
-  progress("credentials ok");
-  progress(`checking project ${project}...`);
+  progress({ msg: "credentials ok" });
+  progress({ msg: `checking project ${project}...` });
   await preflightProject(creds, project);
-  progress("project ok");
+  progress({ msg: "project ok" });
 
   const stateFile = statePath(outDir);
   const previous = await loadState(stateFile);
@@ -144,16 +145,16 @@ export async function runPull(cli: PullOptions): Promise<void> {
     ? overlapWindow(previous!.maxUpdated)
     : undefined;
   if (incremental) {
-    progress(
-      `incremental pull: issues updated since ${updatedSince}` +
+    progress({
+      msg: `incremental pull: issues updated since ${updatedSince}` +
         (previous!.timeZone && previous!.timeZone !== timeZone
           ? ` (previous run tz: ${previous!.timeZone}, now: ${timeZone})`
           : ""),
-    );
+    });
   } else if (!cli.full && previous === undefined) {
-    progress("no previous state found: running a full pull");
+    progress({ msg: "no previous state found: running a full pull" });
   } else if (cli.full) {
-    progress("--full: running a full pull");
+    progress({ msg: "--full: running a full pull" });
   }
 
   const local = await scanLocal(outDir, project);
@@ -186,7 +187,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
     seenKeys.add(pulled.key);
     issueCount++;
     if (issueCount % 25 === 0) {
-      progress(`rendered ${issueCount} issues`);
+      progress({ msg: `rendered ${issueCount} issues` });
     }
     await pullIssue(pulled, local, outDir, cli.dryRun, counters, undefined);
   }
