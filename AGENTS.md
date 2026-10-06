@@ -61,8 +61,7 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
   `import type { JiraLocalConfig } from "jsr:@jollytoad/jira-local"`) and
   `./cli` → `src/cli.ts`, runnable directly as
   `deno run jsr:@jollytoad/jira-local/cli`. `init`'s generated config imports
-  from `../src/mod.ts` locally and from the package specifier when run from a
-  published copy.
+  from `jsr:@jollytoad/jira-local`.
 
 ## Files
 

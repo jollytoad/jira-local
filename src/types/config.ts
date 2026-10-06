@@ -8,7 +8,7 @@
  * ```
  *
  * Field-name vocabulary (`FrontMatterKey`, `IndexColumn`) derives from the
- * issue front matter in `types.ts`.
+ * issue front matter in `types/`.
  */
 
 import type { FrontMatterKey, IndexColumn } from "./jira-local.ts";

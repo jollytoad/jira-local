@@ -114,7 +114,7 @@ refuses to overwrite an existing config — edit that file instead.
 The generated config is a TypeScript module exporting a `config` object:
 
 ```ts
-import type { JiraLocalConfig } from "../src/types.ts";
+import type { JiraLocalConfig } from "jsr:@jollytoad/jira-local";
 
 export const config: JiraLocalConfig = {
   site: "https://yoursite.atlassian.net",
@@ -196,7 +196,7 @@ category field is optional and a missing file means "index pages everywhere,
 with default columns":
 
 ```ts
-import type { JiraLocalConfig } from "../src/types.ts";
+import type { JiraLocalConfig } from "jsr:@jollytoad/jira-local";
 
 export const config: JiraLocalConfig = {
   // Index pages per top-level category, with table columns (front-matter
@@ -250,7 +250,7 @@ Source lives in `src/`:
 | `config.ts`              | Loads/validates `.jira/.config.ts` (connection fields, index pages), cached `getConfig`                                         |
 | `state.ts`               | Incremental watermark load/save                                                                                                 |
 | `constants.ts`           | Shared runtime constants (front-matter field names for config validation)                                                       |
-| `types.ts`               | Types only (interfaces/type aliases)                                                                                            |
+| `types/`                 | Types only (interfaces/type aliases), split by domain: `adf.ts`, `jira-raw.ts`, `jira-local.ts`, `config.ts`                    |
 | `util.ts`                | Small shared helpers (progress logging, pool)                                                                                   |
 
 Run checks with `deno task ok` (fmt, lint, type-check). Runtime dependencies

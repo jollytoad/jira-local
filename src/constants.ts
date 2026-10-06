@@ -1,5 +1,5 @@
 /**
- * Shared runtime constants for the jira-local tool (types live in types.ts).
+ * Shared runtime constants for the jira-local tool (types live in `src/types/`).
  */
 
 import type { IssueFrontMatter } from "./types/jira-local.ts";
