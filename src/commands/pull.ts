@@ -22,9 +22,9 @@ import { pruneDeleted, pullIssue, scanLocal } from "../pull.ts";
 import { contentToPulledIssue, jiraIssueToContent } from "../render.ts";
 import { loadState, saveState, statePath } from "../state.ts";
 import type { Credentials } from "../types/jira-raw.ts";
-import type { PullCounters, PullState } from "../types/jira-local.ts";
+import type { PullState } from "../types/jira-local.ts";
 import type { JiraLocalConfig } from "../types/config.ts";
-import { elapsed, pluralise } from "../util.ts";
+import { elapsed } from "../util.ts";
 import { progress } from "../progress.ts";
 
 export interface PullOptions {
@@ -162,17 +162,13 @@ export async function runPull(cli: PullOptions): Promise<void> {
   }
 
   const local = await scanLocal(outDir, project);
-  const counters: PullCounters = {
-    created: 0,
-    updated: 0,
-    deleted: 0,
-    unchanged: 0,
-  };
   const seenKeys = new Set<string>();
   let issueCount = 0;
   // Watermark candidate: newest `updated` seen this run. Only promoted into
   // the state file after the whole stream completes without error.
   let maxUpdated: string | undefined = previous?.maxUpdated;
+
+  progress({ task: "render", msg: "rendering issues", status: "start" });
 
   for await (
     const issue of fetchJiraIssues(creds, project, {
@@ -190,11 +186,11 @@ export async function runPull(cli: PullOptions): Promise<void> {
     const pulled = contentToPulledIssue(content);
     seenKeys.add(pulled.key);
     issueCount++;
-    if (issueCount % 25 === 0) {
-      progress({ msg: `rendered ${issueCount} issues` });
-    }
-    await pullIssue(pulled, local, outDir, cli.dryRun, counters, undefined);
+    progress({ task: "render", msg: `issue rendered (${issue.key})`, inc: 1 });
+    await pullIssue(pulled, local, outDir, cli.dryRun);
   }
+
+  progress({ task: "render", msg: "issues rendered", status: "ok" });
 
   if (issueCount === 0 && !incremental) {
     const expected = await countIssues(creds, project);
@@ -214,12 +210,19 @@ export async function runPull(cli: PullOptions): Promise<void> {
   // Pruning needs full knowledge of the issue set: skip it in incremental
   // mode (a key absent from the update window is not necessarily deleted).
   if (cli.prune && !incremental) {
-    await pruneDeleted(local, seenKeys, outDir, cli.dryRun, counters);
+    await pruneDeleted(local, seenKeys, outDir, cli.dryRun);
   }
 
   // Refresh the category index pages (cheap: re-categorises everything in
   // `all/`).
-  const categories = await reconcileCategories(local, outDir, cli.dryRun);
+  await reconcileCategories(local, outDir, cli.dryRun);
+
+  // Settle the per-issue counting rows: they carry no lifecycle of their own, so
+  // nothing else would end their spinner. `stop` drops any row that never
+  // counted, so a no-op pull shows only the work it actually did.
+  progress({ task: "issue-create", msg: "issues created", status: "stop" });
+  progress({ task: "issue-update", msg: "issues updated", status: "stop" });
+  progress({ task: "issue-delete", msg: "issues deleted", status: "stop" });
 
   const next: PullState = {
     maxUpdated: truncateToMinute(maxUpdated ?? previous?.maxUpdated ?? ""),
@@ -231,19 +234,12 @@ export async function runPull(cli: PullOptions): Promise<void> {
     await saveState(stateFile, next);
   }
 
-  const parts = [
-    `${counters.created} created`,
-    `${counters.updated} updated`,
-    `${counters.deleted} deleted`,
-    `${counters.unchanged} unchanged`,
-    `${categories.indexesCreated + categories.indexesUpdated} indexes changed`,
-    `${categories.indexesRemoved} indexes removed`,
-  ];
+  // The task rows above already carry the counts; this line keeps only what
+  // they cannot express — how long the run took, which mode it ran in, and
+  // whether anything was actually written.
   console.log(
-    `Pulled ${pluralise(issueCount, "issue", "issues")} — ${
-      parts.join(", ")
-    } in ${elapsed(started)}${
-      incremental ? ` (incremental since ${updatedSince})` : " (full)"
+    `${incremental ? "Incremental pull" : "Full pull"} in ${elapsed(started)}${
+      incremental ? ` since ${updatedSince}` : ""
     }${cli.dryRun ? " — dry run: no changes written" : ""}.`,
   );
 }

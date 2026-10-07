@@ -174,7 +174,6 @@ export async function* fetchJiraIssues(
     options.updatedSince ? ` AND updated > "${options.updatedSince}"` : ""
   } ORDER BY key ASC`;
 
-  let pageCount = 0;
   let fallbackCount = 0;
 
   const fetchPage = (pageToken?: string): Promise<SearchResponse> =>
@@ -192,14 +191,15 @@ export async function* fetchJiraIssues(
       },
     );
 
+  progress({ task: "fetch", msg: "issues fetched", status: "start" });
+
   // Start the first fetch immediately.
   let pending: Promise<SearchResponse> | undefined = fetchPage();
 
   while (pending) {
     const page: SearchResponse = await pending;
-    pageCount++;
     const issues: JiraIssue[] = page.issues ?? [];
-    progress({ msg: `fetched ${issues.length} issues (${pageCount} page(s))` });
+    progress({ task: "fetch", msg: "issues fetched", inc: issues.length });
     // Begin the next page before completing this one.
     const next: Promise<SearchResponse> | undefined = page.nextPageToken
       ? fetchPage(page.nextPageToken)
@@ -227,10 +227,10 @@ export async function* fetchJiraIssues(
     for (const issue of complete) yield issue;
     pending = next;
   }
+  progress({ task: "fetch", status: "ok" });
   if (fallbackCount > 0) {
     progress({
-      msg:
-        `fetched ${pageCount} page(s) (done) — ${fallbackCount} issues used per-issue comment fallback`,
+      msg: `${fallbackCount} issues used per-issue comment fallback`,
     });
   }
 }

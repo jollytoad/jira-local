@@ -3,7 +3,7 @@
  * (front matter plus raw body) and its field-name vocabulary, which doubles
  * as the vocabulary for category names and index columns (see
  * `types/config.ts` and `config.ts`), plus the pull-pipeline shapes
- * (rendered issue, local file records, counters, watermark state).
+ * (rendered issue, local file records, watermark state).
  */
 
 /** The front-matter data of a rendered issue file, in file order. */
@@ -50,14 +50,6 @@ export interface LocalIssueFile {
   absPath: string;
   relPath: string;
   content: string;
-}
-
-/** Counters for the per-issue actions taken by a pull. */
-export interface PullCounters {
-  created: number;
-  updated: number;
-  deleted: number;
-  unchanged: number;
 }
 
 /** Incremental-pull watermark state persisted as `.jira/.state.json`. */

@@ -28,6 +28,7 @@ const SPINNER_INTERVAL_MS = 80;
 const STATUS_GLYPHS: Record<Exclude<TaskStatus, "start">, string> = {
   ok: "✔",
   fail: "✘",
+  stop: "✔",
 };
 
 /** Used when the terminal reports no usable width (piped, or a pty giving 0). */
@@ -39,13 +40,14 @@ const CLEAR_LINE = `${ESC}[2K`;
 /** Move the cursor up `n` rows. */
 const UP = (n: number) => `${ESC}[${n}A`;
 
-interface Task {
+interface TaskState {
   msg: string;
   status: TaskStatus;
+  count?: number;
 }
 
 /** Live tasks by id, in insertion order. */
-const tasks = new Map<string, Task>();
+const tasks = new Map<string, TaskState>();
 
 let frame = 0;
 /** Deno's Node-compat layer types this as a `Timeout`, not a number. */
@@ -68,19 +70,31 @@ export function setVerbose(value: boolean): void {
  * status with no label, or an empty `progress({})` all render rather than
  * fail. That keeps call sites free of error handling.
  */
-export function progress({ task: id, msg, status }: ProgressProps): void {
+export function progress({ task: id, msg, status, inc }: ProgressProps): void {
   if (id === undefined) {
     plainLine(msg ?? "");
     return;
   }
 
-  const task = advance(id, msg, status);
+  const task = advance(id, msg, status, inc);
+  // A `stop` reports work that actually happened, so a task that never counted
+  // has nothing to report: drop the row rather than print a bare "stopped".
+  const dropped = task.status === "stop" && task.count === undefined;
+  if (dropped) tasks.delete(id);
   if (plain()) {
-    plainLine(describe(task));
+    if (!dropped) plainLine(describe(task));
     return;
   }
-  if (task.status === "start") startSpinner();
-  else stopSpinner();
+  switch (task.status) {
+    case "start":
+      startSpinner();
+      break;
+    case "ok":
+    case "fail":
+    case "stop":
+      stopSpinner();
+      break;
+  }
   redraw();
 }
 
@@ -104,11 +118,15 @@ function advance(
   id: string,
   msg: string | undefined,
   status: TaskStatus | undefined,
-): Task {
+  inc: number | undefined,
+): TaskState {
   const existing = tasks.get(id);
-  const task: Task = {
+  const task: TaskState = {
     msg: msg ?? existing?.msg ?? "",
     status: status ?? existing?.status ?? "start",
+    count: typeof inc === "number" && Number.isFinite(inc)
+      ? (existing?.count ?? 0) + inc
+      : existing?.count,
   };
   tasks.set(id, task);
   return task;
@@ -117,17 +135,23 @@ function advance(
 /**
  * The text of a task line. A running task is marked with a trailing ellipsis,
  * which only shows in plain mode: on a terminal the spinner already says the
- * task is in progress, and the line persists once it resolves.
+ * task is in progress, and the line persists once it resolves. A counted task
+ * carries its tally, plain-mode style: there is no width to align against.
  */
-function describe(task: Task): string {
-  if (task.status === "start") return `${task.msg}...`;
-  return `${task.msg} ${task.status}`;
+function describe(task: TaskState): string | undefined {
+  if (task.status === "stop") return;
+  const base = task.status === "start"
+    ? `${task.msg}...`
+    : `${task.msg} ${task.status}`;
+  return task.count === undefined ? base : `${base} (${task.count})`;
 }
 
 /** A timestamped line: the format for every non-task report. */
-function plainLine(text: string): void {
-  const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
-  emit(`[${time}] ${text}`);
+function plainLine(text: string | undefined): void {
+  if (text !== undefined) {
+    const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
+    emit(`[${time}] ${text}`);
+  }
 }
 
 /** Whether to use plain lines: forced by `--verbose`, or no terminal. */
@@ -161,12 +185,32 @@ function redraw(): void {
   write(out);
 }
 
-/** The current task block as display rows, trimmed to the terminal width. */
+/**
+ * The current task block as display rows, trimmed to the terminal width.
+ *
+ * A counted task pins its tally to the right edge with dots filling the gap, so
+ * the numbers line up as they grow. Unbracketed here: on a terminal the dots
+ * already set the tally apart, and brackets only clutter the aligned edge. Plain
+ * mode, with no dots to do that work, keeps them. If both will not fit, the
+ * message gives way rather than the tally — the count is the part that cannot be
+ * read off the line.
+ *
+ * Rows are held to one column short of the terminal width: a row that exactly
+ * fills the last column still wraps on some terminals.
+ */
 function renderTasks(): string[] {
   const width = columns() - 1;
-  return [...tasks.values()].map((task) =>
-    `${glyph(task.status)} ${task.msg}`.slice(0, width)
-  );
+  return [
+    ...tasks.values().map((task) => {
+      const left = `${glyph(task.status)} ${task.msg}`;
+      if (task.count === undefined) return left.slice(0, width);
+      const right = String(task.count);
+      // Two of the budget go on the spaces flanking the dots.
+      const dots = width - left.length - right.length - 2;
+      if (dots < 1) return `${left} ${right}`.slice(-width);
+      return `${left} ${".".repeat(dots)} ${right}`;
+    }),
+  ];
 }
 
 /**

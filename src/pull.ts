@@ -6,11 +6,7 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { Dirent } from "node:fs";
-import type {
-  LocalIssueFile,
-  PullCounters,
-  PulledIssue,
-} from "./types/jira-local.ts";
+import type { LocalIssueFile, PulledIssue } from "./types/jira-local.ts";
 import { progress } from "./progress.ts";
 
 const ISSUE_FILE_PATTERN = /^([A-Za-z][A-Za-z0-9]*-\d+)\.md$/;
@@ -49,16 +45,14 @@ export async function scanLocal(
 }
 
 /**
- * Write (or skip) a single streamed issue, logging the action with a running
- * counter. Respects dry-run (decides but does not write).
+ * Write (or skip) a single streamed issue, reporting the action against its own
+ * counted task line. Respects dry-run (decides but does not write).
  */
 export async function pullIssue(
   issue: PulledIssue,
   local: ReadonlyMap<string, LocalIssueFile[]>,
   outDir: string,
   dryRun: boolean,
-  counters: PullCounters,
-  total: number | undefined,
 ): Promise<PullAction> {
   const fileName = `${issue.key}.md`;
   const absPath = join(outDir, fileName);
@@ -76,15 +70,12 @@ export async function pullIssue(
     await mkdir(outDir, { recursive: true });
     await writeFile(absPath, issue.markdown);
   }
-  bump(counters, action);
   // Unchanged issues stay silent: only report actual work.
   if (action !== "unchanged") {
     progress({
-      msg: `${action.padEnd(9)} ${relPath}${
-        total !== undefined
-          ? ` [${counters.created + counters.updated}/${total}]`
-          : ""
-      }`,
+      task: `issue-${action}`,
+      msg: `issue ${action} (${relPath})`,
+      inc: 1,
     });
   }
   return action;
@@ -99,22 +90,18 @@ export async function pruneDeleted(
   seenKeys: ReadonlySet<string>,
   outDir: string,
   dryRun: boolean,
-  counters: PullCounters,
 ): Promise<number> {
   let deleted = 0;
   for (const [key, files] of local) {
     if (seenKeys.has(key)) continue;
     for (const file of files) {
       deleted++;
-      counters.deleted++;
-      if (!dryRun) {
-        await rm(file.absPath);
-        progress({ msg: `delete     ${file.relPath} (deleted in Jira)` });
-      } else {
-        progress({
-          msg: `delete     ${file.relPath} (deleted in Jira, dry-run)`,
-        });
-      }
+      if (!dryRun) await rm(file.absPath);
+      progress({
+        task: "issue-delete",
+        msg: `issue delete (${file.relPath})`,
+        inc: 1,
+      });
     }
   }
   if (!dryRun && deleted > 0) {
@@ -130,10 +117,4 @@ export async function pruneDeleted(
     }
   }
   return deleted;
-}
-
-function bump(counters: PullCounters, action: PullAction): void {
-  if (action === "create") counters.created++;
-  else if (action === "update") counters.updated++;
-  else counters.unchanged++;
 }

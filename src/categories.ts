@@ -113,10 +113,10 @@ export async function reconcileCategories(
     }
     if (existing === undefined) {
       counters.indexesCreated++;
-      progress({ msg: `index     ${rel} (created)` });
+      progress({ task: "index-create", msg: `index create (${rel})`, inc: 1 });
     } else {
       counters.indexesUpdated++;
-      progress({ msg: `index     ${rel} (updated)` });
+      progress({ task: "index-update", msg: `index update (${rel})`, inc: 1 });
     }
   }
 
@@ -137,8 +137,15 @@ export async function reconcileCategories(
     if (!exists) continue;
     if (!dryRun) await rm(indexPath);
     counters.indexesRemoved++;
-    progress({ msg: `index     ${rel} (removed)` });
+    progress({ task: "index-delete", msg: `index delete (${rel})`, inc: 1 });
   }
+
+  // Settle the counting rows: they carry no lifecycle of their own, so nothing
+  // else would ever end their spinner. `stop` drops any row that never counted,
+  // so a category with nothing created/updated/removed leaves no trace.
+  progress({ task: "index-create", msg: "indexes created", status: "stop" });
+  progress({ task: "index-update", msg: "indexes updated", status: "stop" });
+  progress({ task: "index-delete", msg: "indexes removed", status: "stop" });
 
   return counters;
 }

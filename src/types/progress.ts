@@ -1,7 +1,7 @@
 /** Options for a single progress report. */
 
 /** Where a task is in its lifecycle. */
-export type TaskStatus = "start" | "ok" | "fail";
+export type TaskStatus = "start" | "ok" | "fail" | "stop";
 
 /**
  * A progress report.
@@ -22,4 +22,10 @@ export interface ProgressProps {
   msg?: string;
   /** Lifecycle position. Updates the stored status when provided. */
   status?: TaskStatus;
+  /**
+   * Add this much to the task's internal counter. Not rendered yet; counting is
+   * independent of the lifecycle, so `inc` leaves the spinner and the displayed
+   * status alone. Ignored without a `task` (there is no row to count into).
+   */
+  inc?: number;
 }

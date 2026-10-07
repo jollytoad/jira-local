@@ -8,7 +8,7 @@ import { Command } from "@cliffy/command";
 
 import { reconcileCategories } from "../categories.ts";
 import { scanLocal } from "../pull.ts";
-import { elapsed, pluralise } from "../util.ts";
+import { elapsed } from "../util.ts";
 
 export function categorizeCommand() {
   return new Command()
@@ -42,15 +42,12 @@ export async function runCategorize(
     `Re-categorising issues in ${outDir}${dryRun ? " (dry-run)" : ""}...`,
   );
   const local = await scanLocal(outDir, "*");
-  const counters = await reconcileCategories(local, outDir, dryRun);
-  const parts = [
-    `${counters.indexesCreated + counters.indexesUpdated} indexes changed`,
-    `${counters.indexesRemoved} indexes removed`,
-    `${counters.indexesUnchanged} indexes unchanged`,
-  ];
+  await reconcileCategories(local, outDir, dryRun);
+  // As in `pull`: the index rows above carry the counts, so this keeps only
+  // the timing and the dry-run warning.
   console.log(
-    `Categorised ${pluralise(local.size, "issue", "issues")} — ${
-      parts.join(", ")
-    } in ${elapsed(started)}${dryRun ? " — dry run: no changes written" : ""}.`,
+    `Categorised in ${elapsed(started)}${
+      dryRun ? " — dry run: no changes written" : ""
+    }.`,
   );
 }
