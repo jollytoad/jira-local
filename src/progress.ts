@@ -9,6 +9,12 @@
  * - Everywhere else (output redirected, or `--verbose`), every call prints one
  *   plain timestamped line, so logs stay readable and free of control codes.
  *
+ * A terminal also gets colour (yellow spinner, green tick, red cross, muted dot
+ * leader, bold tally — all at bright intensity; see style.ts). Piped output,
+ * `--verbose`, and plain lines stay colour-free, so logs never carry escape
+ * codes. The gate is FORCE_COLOR / TERM=dumb / TTY, with NO_COLOR handled by
+ * @std/fmt.
+ *
  * A call with no `task` is always a plain line: the per-file create/update
  * events that make up most of a pull's output are events, not lifecycle steps.
  *
@@ -17,6 +23,7 @@
  */
 
 import process from "node:process";
+import { busy, done, failed, muted, strong } from "./style.ts";
 import type { ProgressProps, TaskStatus } from "./types/progress.ts";
 
 /** Braille spinner frames. */
@@ -24,11 +31,22 @@ const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", 
 
 const SPINNER_INTERVAL_MS = 80;
 
+/**
+ * U+FE0E, the text-presentation selector.
+ *
+ * `✔` and `✘` have emoji variants, so a terminal whose primary font lacks the
+ * dingbat falls back to a colour emoji font and draws the glyph in its own
+ * colours, ignoring whatever foreground colour it was given. Pinning text
+ * presentation forbids the substitution. The selector is zero-width, so it is
+ * stripped again before anything measures a row (see `bareGlyph`).
+ */
+const TEXT_PRESENTATION = "\uFE0E";
+
 /** Glyph for a task that has resolved. */
 const STATUS_GLYPHS: Record<Exclude<TaskStatus, "start">, string> = {
-  ok: "✔",
-  fail: "✘",
-  stop: "✔",
+  ok: `✔${TEXT_PRESENTATION}`,
+  fail: `✘${TEXT_PRESENTATION}`,
+  stop: `✔${TEXT_PRESENTATION}`,
 };
 
 /** Used when the terminal reports no usable width (piped, or a pty giving 0). */
@@ -172,6 +190,15 @@ function glyph(status: TaskStatus): string {
 }
 
 /**
+ * A glyph without its text-presentation selector: the columns it actually
+ * costs. Every width in a row is measured from these, never from the painted
+ * string or the selector-laden glyph.
+ */
+function bareGlyph(glyphText: string): string {
+  return glyphText.replaceAll(TEXT_PRESENTATION, "");
+}
+
+/**
  * Redraw the task block, reusing the rows already on screen.
  *
  * A plain line arriving mid-block would land on top of it, so `emit` steps
@@ -197,20 +224,47 @@ function redraw(): void {
  *
  * Rows are held to one column short of the terminal width: a row that exactly
  * fills the last column still wraps on some terminals.
+ *
+ * Colour is layered on at assembly, and the dot/column budget is measured on
+ * the plain text only: escape bytes are invisible but count toward a string's
+ * length, so they would otherwise push the tally off the right edge.
  */
 function renderTasks(): string[] {
   const width = columns() - 1;
   return [
     ...tasks.values().map((task) => {
-      const left = `${glyph(task.status)} ${task.msg}`;
-      if (task.count === undefined) return left.slice(0, width);
+      const tick = glyph(task.status);
+      const mark = task.status === "start"
+        ? busy(tick)
+        : task.status === "fail"
+        ? failed(tick)
+        : done(tick);
+      // Measured from the bare glyph: the painted mark renders the same
+      // columns, but neither its escape bytes nor the zero-width selector in
+      // `tick` may count against the budget.
+      const bare = bareGlyph(tick);
+      const left = `${bare} ${task.msg}`;
+      if (task.count === undefined) {
+        return paintMark(left.slice(0, width), bare, mark);
+      }
       const right = String(task.count);
       // Two of the budget go on the spaces flanking the dots.
       const dots = width - left.length - right.length - 2;
-      if (dots < 1) return `${left} ${right}`.slice(-width);
-      return `${left} ${".".repeat(dots)} ${right}`;
+      if (dots < 1) {
+        return paintMark(`${left} ${right}`.slice(-width), bare, mark);
+      }
+      return `${mark} ${task.msg} ${muted(".".repeat(dots))} ${strong(right)}`;
     }),
   ];
+}
+
+/**
+ * Swap the leading glyph of a trimmed row for its coloured mark. If the trim
+ * cut the glyph off entirely there is nothing to colour — keep the row plain
+ * rather than corrupting escape bytes.
+ */
+function paintMark(row: string, bare: string, mark: string): string {
+  return row.startsWith(bare) ? mark + row.slice(bare.length) : row;
 }
 
 /**

@@ -251,15 +251,18 @@ Source lives in `src/`:
 | `state.ts`               | Incremental watermark load/save                                                                                                 |
 | `constants.ts`           | Shared runtime constants (front-matter field names for config validation)                                                       |
 | `types/`                 | Types only (interfaces/type aliases), split by domain: `adf.ts`, `jira-raw.ts`, `jira-local.ts`, `config.ts`                    |
-| `util.ts`                | Small shared helpers (progress logging, pool)                                                                                   |
+| `util.ts`                | Small shared helpers (pool)                                                                                                     |
+| `progress.ts`            | Progress reporting: in-place task lines with a spinner on a terminal, plain timestamped lines when piped or `--verbose`         |
+| `style.ts`               | Terminal colour gate (NO_COLOR / FORCE_COLOR / TERM / TTY) and the palette wrappers                                             |
 
 Run checks with `deno task ok` (fmt, lint, type-check). Runtime dependencies
 ([pinned by `deno.lock`](./deno.lock)):
 [`@cliffy/command`](https://jsr.io/@cliffy/command) (the CLI) and
 [`@cliffy/prompt`](https://jsr.io/@cliffy/prompt) (init's interactive prompts),
 [`@std/front-matter`](https://jsr.io/@std/front-matter) (issue front-matter
-parsing for categorisation) and [`@std/yaml`](https://jsr.io/@std/yaml)
-(front-matter rendering).
+parsing for categorisation), [`@std/yaml`](https://jsr.io/@std/yaml)
+(front-matter rendering) and [`@std/fmt`](https://jsr.io/@std/fmt) (terminal
+colour).
 
 ## Troubleshooting
 

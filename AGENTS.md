@@ -17,20 +17,23 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
   (`node:fs/promises`, `node:path`, `node:process`, `node:url`) that the
   codebase already imports throughout, so a non-Deno runtime stays an option
   later. This is a hard filter on dependencies too — reject any package that
-  reaches for `Deno.*` internally (it can't be shimmed), and prefer implementing
-  small things here over adding a dependency for them.
-- Deno 2.x, four runtime dependencies (`@cliffy/command` for the CLI and
+  unconditionally reaches for `Deno.*` internals, and prefer implementing small
+  things here over adding a dependency for them. (`@std/fmt` is the known
+  exception: it reads `globalThis.Deno?.noColor` opportunistically, so it
+  degrades to plain output rather than failing off-Deno.)
+- Deno 2.x, five runtime dependencies (`@cliffy/command` for the CLI and
   `@cliffy/prompt` for init's interactive prompts, `@std/front-matter`,
-  `@std/yaml` via `imports` in `deno.json`, pinned by `deno.lock` — commit it).
-  `deno task ok` is the full check; CI is two workflows in `.github/workflows/`
-  (both `on: release: types: [published]`, and both verify the tag is `v` +
-  `version` from `deno.json`): `publish.yml` fmt/lint/checks then `deno publish`
-  to JSR; `release.yml` compiles four targets (`aarch64-apple-darwin`,
-  `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`,
-  `aarch64-unknown-linux-gnu`) via `deno compile -P` (permissions from
-  `compile.permissions` in `deno.json`), uploads each as a versioned tarball
-  `jira-local-v<version>-<target>.tar.gz` to the release that triggered the run,
-  then regenerates `Formula/cli.rb` (Homebrew formula; install via
+  `@std/yaml`, `@std/fmt` for terminal colour, via `imports` in `deno.json`,
+  pinned by `deno.lock` — commit it). `deno task ok` is the full check; CI is
+  two workflows in `.github/workflows/` (both `on: release: types: [published]`,
+  and both verify the tag is `v` + `version` from `deno.json`): `publish.yml`
+  fmt/lint/checks then `deno publish` to JSR; `release.yml` compiles four
+  targets (`aarch64-apple-darwin`, `x86_64-apple-darwin`,
+  `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`) via `deno compile -P`
+  (permissions from `compile.permissions` in `deno.json`), uploads each as a
+  versioned tarball `jira-local-v<version>-<target>.tar.gz` to the release that
+  triggered the run, then regenerates `Formula/cli.rb` (Homebrew formula;
+  install via
   `brew tap jollytoad/jira-local https://github.com/jollytoad/jira-local` then
   `brew install jollytoad/jira-local/cli` — the formula lives in this repo, not
   a `homebrew-*` tap repo, so the tap needs the explicit URL) with the new
