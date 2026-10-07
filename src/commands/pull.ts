@@ -130,12 +130,16 @@ export async function runPull(cli: PullOptions): Promise<void> {
       cli.dryRun ? " (dry-run)" : ""
     }...`,
   );
-  progress({ msg: "checking credentials..." });
+  progress({ task: "creds", msg: "checking credentials", status: "start" });
   const { timeZone } = await preflightAuth(creds);
-  progress({ msg: "credentials ok" });
-  progress({ msg: `checking project ${project}...` });
+  progress({ task: "creds", status: "ok" });
+  progress({
+    task: "project",
+    msg: `checking project ${project}`,
+    status: "start",
+  });
   await preflightProject(creds, project);
-  progress({ msg: "project ok" });
+  progress({ task: "project", status: "ok" });
 
   const stateFile = statePath(outDir);
   const previous = await loadState(stateFile);

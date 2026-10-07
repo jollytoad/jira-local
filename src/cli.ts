@@ -16,6 +16,7 @@ import { Command } from "@cliffy/command";
 import { categorizeCommand } from "./commands/categorize.ts";
 import { initCommand } from "./commands/init.ts";
 import { pullCommand } from "./commands/pull.ts";
+import { failAll, setVerbose } from "./progress.ts";
 import {
   ConfigError,
   JiraApiError,
@@ -31,6 +32,14 @@ async function main(): Promise<number> {
       "Pull Jira issues into a flat folder of <KEY>.md files and generate\n" +
         "categorised index pages.",
     )
+    // The action fires while parsing, before the subcommand's own action runs,
+    // so progress() is already in the right mode by the first report. Reading
+    // `options.verbose` after parse() would be too late.
+    .option(
+      "--verbose",
+      "Log one timestamped line per step instead of updating task lines in place.",
+      { global: true, action: () => setVerbose(true) },
+    )
     .command("pull", pullCommand())
     .command("categorize", categorizeCommand())
     .command("init", initCommand())
@@ -39,6 +48,7 @@ async function main(): Promise<number> {
     await command.parse();
     return 0;
   } catch (error) {
+    failAll();
     const denied = error instanceof Error &&
       (error.name === "NotCapable" ||
         (error as { code?: unknown }).code === "ERR_ACCESS_DENIED");
