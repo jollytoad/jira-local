@@ -1,6 +1,4 @@
-/** Shared helpers for the jira-local tool. */
-
-/** Flatten a Jira display name object (user/project/version) to a string. */
+/** Users, projects and versions all spell their name differently. */
 export function displayName(
   value: { displayName?: string; name?: string } | null | undefined,
 ): string {
@@ -10,14 +8,13 @@ export function displayName(
   return "";
 }
 
-/** ISO date (yyyy-mm-dd) part of a Jira timestamp, local-safe. */
 export function isoDate(value: string | undefined): string {
   if (!value) return "";
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
 
-/** Run async tasks with bounded concurrency, preserving input order in results. */
+/** Bounded concurrency, results in input order. */
 export async function pool<T, R>(
   items: readonly T[],
   concurrency: number,
@@ -48,7 +45,6 @@ export function pluralise(n: number, one: string, many: string): string {
   return n === 1 ? `${n} ${one}` : `${n} ${many}`;
 }
 
-/** Human-readable elapsed time since `started` (ms). */
 export function elapsed(started: number): string {
   const secs = (Date.now() - started) / 1000;
   return secs >= 10 ? `${secs.toFixed(0)}s` : `${secs.toFixed(1)}s`;

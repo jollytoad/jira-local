@@ -1,21 +1,18 @@
 /**
- * Incremental-pull state: a small JSON file remembering the newest issue
- * `updated` timestamp observed by the previous clean run, so the next run
- * can query only what changed since. Lives next to the issues folder, not
- * inside it, so it never collides with issue files or pruning.
+ * Incremental-pull watermark: the newest `updated` seen by the previous clean
+ * run. It sits outside the issues folder so pruning cannot delete it.
  */
 
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { PullState } from "./types/jira-local.ts";
 
-/** Path of the state file, sibling of the issues output dir. */
 export function statePath(outDir: string): string {
   const grandParent = dirname(dirname(outDir));
   return join(grandParent, ".state.json");
 }
 
-/** Load the state file, or undefined when absent/corrupt (full pull). */
+/** A corrupt or watermark-less file reads as absent, forcing a full pull. */
 export async function loadState(
   path: string,
 ): Promise<PullState | undefined> {
@@ -31,7 +28,6 @@ export async function loadState(
   }
 }
 
-/** Persist the state file (after a clean run). */
 export async function saveState(
   path: string,
   state: PullState,

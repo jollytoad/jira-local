@@ -1,9 +1,4 @@
-/**
- * Atlassian Document Format (ADF) types: the rich-text document shape used
- * by Jira for issue descriptions and comment bodies.
- */
-
-/** A node in Atlassian Document Format (ADF). */
+/** Atlassian Document Format: Jira's rich-text document shape. */
 export interface AdfNode {
   type: string;
   text?: string;

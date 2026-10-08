@@ -8,7 +8,6 @@ import type {
 import type { JiraIssue, JiraIssueRef } from "./types/jira-raw.ts";
 import { displayName, isoDate } from "./util.ts";
 
-/** Convert a Jira issue into its parsed file representation. */
 export function jiraIssueToContent(
   issue: JiraIssue,
   siteUrl: string,
@@ -66,7 +65,6 @@ export function jiraIssueToContent(
   return { frontMatter, body: sections.join("\n\n").replace(/\s+$/, "") };
 }
 
-/** Render an issue file's content string from its parsed representation. */
 export function renderIssueFile(content: IssueFileContent): string {
   const { frontMatter, body } = content;
   const sections: string[] = [
@@ -82,7 +80,7 @@ export function renderIssueFile(content: IssueFileContent): string {
   return sections.join("\n\n").replace(/\s+$/, "") + "\n";
 }
 
-/** Build the final `PulledIssue` record from an issue file's parsed content. */
+// Field order is the file's field order: sortKeys is off deliberately.
 export function contentToPulledIssue(content: IssueFileContent): PulledIssue {
   return {
     key: content.frontMatter.key,
@@ -90,10 +88,7 @@ export function contentToPulledIssue(content: IssueFileContent): PulledIssue {
   };
 }
 
-/**
- * Issue keys of an embedded-ref list (subtasks, link ends), de-duplicated and
- * in order.
- */
+/** Keys of an embedded-ref list, de-duplicated and in order. */
 function refKeys(
   refs: ReadonlyArray<JiraIssueRef | null | undefined>,
 ): string[] {

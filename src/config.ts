@@ -1,14 +1,10 @@
 /**
- * User configuration: `.jira/.config.ts` (sibling of the issues folder), a
- * TypeScript module exporting a `config` object typed as `JiraLocalConfig`.
+ * Loads `.jira/.config.ts`, a TypeScript module exporting `config`. It is
+ * imported rather than parsed, so the file itself decides where its values
+ * come from (including `process.env`) and the tool reads no env vars itself.
  *
- * Loaded lazily by `getConfig` and cached per resolved path for the lifetime
- * of the process, so callers that already know the issues folder can pull the
- * config themselves instead of it being threaded through parameters. A missing
- * config file is not an error: the defaults (no filtering) apply. A malformed
- * config — bad export, wrong shapes, connection fields that are not strings,
- * category names or columns that are not front-matter field names — raises a
- * `ConfigError` and aborts the run before any writing happens.
+ * Cached per path, so callers that know the issues folder can load the config
+ * themselves instead of threading it around. Missing file = all defaults.
  */
 import process from "node:process";
 import { stat } from "node:fs/promises";
@@ -20,19 +16,14 @@ import { FRONT_MATTER_KEYS } from "./constants.ts";
 import type { FrontMatterKey, IndexColumn } from "./types/jira-local.ts";
 import type { JiraLocalConfig } from "./types/config.ts";
 
-/** Path of the config file, sibling of the issues folder (like the state file). */
+/** Sibling of the issues folder, like the state file. */
 export function configPath(outDir: string): string {
-  const grandParent = dirname(dirname(outDir)); // .jira, sibling of issues/
+  const grandParent = dirname(dirname(outDir));
   return join(grandParent, ".config.ts");
 }
 
-/** Loaded configs, keyed by resolved config-file path. */
 const cache = new Map<string, JiraLocalConfig>();
 
-/**
- * Load and validate the config for the issues folder `allDir`. Cached after
- * the first call; missing file yields the empty config (all defaults).
- */
 export async function getConfig(allDir: string): Promise<JiraLocalConfig> {
   const path = configPath(allDir);
   const key = pathToFileURL(path).href;
@@ -43,13 +34,12 @@ export async function getConfig(allDir: string): Promise<JiraLocalConfig> {
   return config;
 }
 
-/** Load the config file, or the empty config when it does not exist. */
 async function loadConfig(path: string): Promise<JiraLocalConfig> {
   let isFile = false;
   try {
     isFile = (await stat(path)).isFile();
   } catch {
-    isFile = false; // missing (or unreadable): use defaults
+    isFile = false; // missing or unreadable: defaults apply
   }
   if (!isFile) return {};
 
@@ -72,7 +62,6 @@ async function loadConfig(path: string): Promise<JiraLocalConfig> {
   return validate(config as Record<string, unknown>, path);
 }
 
-/** Validate the raw config shape; unknown/extra fields are ignored. */
 function validate(
   raw: Record<string, unknown>,
   path: string,
@@ -123,7 +112,6 @@ function validate(
   return { site, project, email, token, categoryIndex };
 }
 
-/** Read an optional string field, erroring on any other type. */
 function stringField(
   raw: Record<string, unknown>,
   name: string,
@@ -139,7 +127,6 @@ function stringField(
   return value;
 }
 
-/** Check whether a value is a front-matter field name (category/column vocabulary). */
 export function isFrontMatterKey(value: unknown): value is FrontMatterKey {
   return (
     typeof value === "string" &&
@@ -155,7 +142,6 @@ function displayOf(value: unknown): string {
   return typeof value === "string" ? value : String(value);
 }
 
-/** The config path relative to the CWD, for friendlier error messages. */
 function where(path: string): string {
   try {
     const rel = relative(process.cwd(), path);

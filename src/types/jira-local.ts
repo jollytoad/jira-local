@@ -1,12 +1,4 @@
-/**
- * Types of the post-conversion data: the local issue file as written to disk
- * (front matter plus raw body) and its field-name vocabulary, which doubles
- * as the vocabulary for category names and index columns (see
- * `types/config.ts` and `config.ts`), plus the pull-pipeline shapes
- * (rendered issue, local file records, watermark state).
- */
-
-/** The front-matter data of a rendered issue file, in file order. */
+/** Front matter, in the order it appears in the file. */
 export interface IssueFrontMatter {
   key: string;
   summary: string;
@@ -25,26 +17,23 @@ export interface IssueFrontMatter {
   url: string;
 }
 
-/** A front-matter field name, usable as an index table column. */
+/** Front-matter field names, which double as category names. */
 export type IndexColumn = keyof IssueFrontMatter;
 
-/** A category name: the front-matter field it is derived from. */
+/** The front-matter field a category is derived from. */
 export type FrontMatterKey = keyof IssueFrontMatter;
 
-/** The parsed content of an issue file: typed front matter plus raw body. */
 export interface IssueFileContent {
   frontMatter: IssueFrontMatter;
   /** Raw markdown body (everything after the front matter). */
   body: string;
 }
 
-/** An issue rendered into its final markdown form. */
 export interface PulledIssue {
   key: string;
   markdown: string;
 }
 
-/** A local issue file scanned from the flat `all/` folder. */
 export interface LocalIssueFile {
   key: string;
   absPath: string;
@@ -52,14 +41,14 @@ export interface LocalIssueFile {
   content: string;
 }
 
-/** Incremental-pull watermark state persisted as `.jira/.state.json`. */
+/** Persisted as `.jira/.state.json`. */
 export interface PullState {
   /** Jira server-side `updated` watermark, "yyyy-MM-dd HH:mm". */
   maxUpdated: string;
   /** Atlassian account timezone the watermark was rendered in. */
   timeZone?: string;
-  /** ISO timestamp of the last completed run (informational). */
+  /** Informational. */
   lastRun?: string;
-  /** Project the watermark belongs to. */
+  /** Invalidates the watermark when the project changes. */
   project?: string;
 }

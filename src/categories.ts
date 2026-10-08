@@ -1,28 +1,3 @@
-/**
- * Category index reconciliation.
- *
- * Renders the categories returned by `categorizeIssue` (categorize.ts) as
- * index pages next to the flat `all/` folder:
- *
- *   .jira/issues/all/SRFR-1.md
- *   .jira/issues/status/Backlog.md
- *
- * A category string "a/b" nests "b" inside "a"; an issue may be listed in any
- * number of categories. Every run recomputes the desired index set from the
- * files currently in `all/`: index pages are written when their rendered
- * content differs, and removed when their category is no longer indexed
- * (stale, or dropped from `categoryIndex`).
- *
- * Which categories get index pages, and with which columns, is configured in
- * `.jira/.config.ts` (see `config.ts`): `categoryIndex` selects the
- * top-level categories with an index page. When it is omitted entirely,
- * every leaf category gets an index page with the default columns.
- *
- * Note: symlink category folders are no longer created. Folders left over
- * from older versions are ignored and left alone; deleting the whole
- * `.jira/` folder is always safe.
- */
-
 import { extract } from "@std/front-matter/yaml";
 import { test } from "@std/front-matter/test";
 import {
@@ -65,20 +40,15 @@ interface DesiredIndexes {
   rows: Map<string, IndexRow[]>;
 }
 
-/** Characters unsafe in file names, plus control characters. */
 const UNSAFE_CHARS = /[\/\\:*?"<>|\p{C}]/gu;
 
-/**
- * Reconcile the category index pages against the issues currently in `local`
- * (as scanned from `allDir`). Respects dry-run: decides but writes nothing.
- */
 export async function reconcileCategories(
   local: ReadonlyMap<string, LocalIssueFile[]>,
   allDir: string,
   dryRun: boolean,
 ): Promise<CategoryCounters> {
-  // Load (and validate) the config before anything is written: a malformed
-  // config aborts the run instead of half-reconciling the tree.
+  // Validate before writing anything, so a bad config aborts rather than
+  // leaving the tree half-reconciled.
   const config = await getConfig(allDir);
   const counters: CategoryCounters = {
     indexesCreated: 0,
@@ -90,9 +60,7 @@ export async function reconcileCategories(
   const scanned = await scanManagedCategories(categoriesDir, basename(allDir));
   const indexes = buildDesired(local, allDir, config);
 
-  // Write index pages for indexed leaf categories (created/updated only when
-  // the rendered content differs). Nested categories may be new, so ensure
-  // the parent directory exists before writing.
+  // Nested categories can be new, so create the parent directory on demand.
   for (const category of byDepth(indexes.content.keys())) {
     const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
     const content = indexes.content.get(category) ?? "";
@@ -101,7 +69,7 @@ export async function reconcileCategories(
     try {
       existing = await readFile(indexPath, "utf8");
     } catch {
-      existing = undefined; // missing (or unreadable): treat as to-be-created
+      existing = undefined; // missing or unreadable: treat as to-be-created
     }
     if (existing === content) {
       counters.indexesUnchanged++;
@@ -120,10 +88,7 @@ export async function reconcileCategories(
     }
   }
 
-  // Remove index pages of scanned categories that are no longer indexed
-  // (stale categories, and categories whose `categoryIndex` entry was
-  // dropped). Categories still present in the desired index set are never
-  // removed here.
+  // Anything on disk no longer in the desired set is stale and goes.
   for (const category of scanned) {
     if (indexes.content.has(category)) continue;
     const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
@@ -140,9 +105,7 @@ export async function reconcileCategories(
     progress({ task: "index-delete", msg: `index delete (${rel})`, inc: 1 });
   }
 
-  // Settle the counting rows: they carry no lifecycle of their own, so nothing
-  // else would ever end their spinner. `stop` drops any row that never counted,
-  // so a category with nothing created/updated/removed leaves no trace.
+  // These rows only ever count, so nothing else would stop their spinners.
   progress({ task: "index-create", msg: "indexes created", status: "stop" });
   progress({ task: "index-update", msg: "indexes updated", status: "stop" });
   progress({ task: "index-delete", msg: "indexes removed", status: "stop" });
@@ -150,14 +113,6 @@ export async function reconcileCategories(
   return counters;
 }
 
-/**
- * Compute the desired index set: for each issue, ask the categoriser which
- * categories it belongs to. `categoryIndex` (see `indexOfCategory`) decides
- * whether the category gets an index page, and with which columns.
- *
- * Rows are collected per leaf category (sorted by key) and rendered into the
- * index content.
- */
 function buildDesired(
   local: ReadonlyMap<string, LocalIssueFile[]>,
   allDir: string,
@@ -205,13 +160,6 @@ function buildDesired(
   return { content, rows };
 }
 
-/**
- * The index columns for a top-level category, or undefined when the category
- * gets no index page. An absent `categoryIndex` config indexes every
- * category with the default columns. Only front-matter field names (the
- * category vocabulary) can appear in `categoryIndex`, so anything else is
- * simply unindexed.
- */
 function indexOfCategory(
   config: JiraLocalConfig,
   topLevel: string,
@@ -221,12 +169,7 @@ function indexOfCategory(
   return config.categoryIndex[topLevel];
 }
 
-/**
- * Parse an issue file into its typed content (front matter + raw body).
- * Values are coerced to the `IssueFrontMatter` shape; unknown or malformed
- * front matter degrades to defaults, with the whole content as body, so
- * categorisation never crashes a pull.
- */
+/** Bad front matter degrades to defaults so categorisation never crashes a pull. */
 function parseIssueFile(content: string): IssueFileContent {
   try {
     if (!test(content)) {
@@ -259,7 +202,6 @@ function emptyFrontMatter(): IssueFrontMatter {
   };
 }
 
-/** Coerce parsed YAML into the IssueFrontMatter shape (best effort). */
 function coerceFrontMatter(attrs: Record<string, unknown>): IssueFrontMatter {
   const stringOf = (key: string): string => {
     const value = attrs[key];
@@ -293,18 +235,14 @@ function coerceFrontMatter(attrs: Record<string, unknown>): IssueFrontMatter {
   };
 }
 
-/**
- * Make a string safe as a file or folder name: replace unsafe characters and
- * control characters with spaces, collapse whitespace, trim, and optionally
- * clip to a maximum length.
- */
+/** Unsafe characters and whitespace collapse to spaces; optionally clipped. */
 function sanitizeName(value: string, max = Number.POSITIVE_INFINITY): string {
   const cleaned = value.replace(UNSAFE_CHARS, " ").replace(/\s+/g, " ").trim();
   if (cleaned.length <= max) return cleaned;
   return cleaned.slice(0, max).replace(/\s+$/, "");
 }
 
-/** Split a category string into safe path segments ("a//b" -> ["a", "b"]). */
+/** "a//b" -> ["a", "b"]; drops empty and relative segments. */
 function sanitizeCategoryPath(raw: string): string[] {
   return raw
     .split("/")
@@ -312,7 +250,6 @@ function sanitizeCategoryPath(raw: string): string[] {
     .filter((segment) => segment !== "" && segment !== "." && segment !== "..");
 }
 
-/** Sort categories shallow-first by path depth. */
 function byDepth(categories: Iterable<string>): string[] {
   const list = [...categories];
   list.sort((a, b) => a.localeCompare(b));
@@ -320,14 +257,6 @@ function byDepth(categories: Iterable<string>): string[] {
   return list;
 }
 
-/**
- * Discover the category directories currently on disk: every directory under
- * `issuesDir` except the flat issue store `rootDir` and hidden entries,
- * returned as sanitised "a/b" category strings (deduplicated). This is the
- * managed set — index pages found here whose category is no longer produced
- * by the categoriser are cleaned up. Symlinked directories (e.g. left over
- * from older versions) are never walked or managed.
- */
 async function scanManagedCategories(
   issuesDir: string,
   rootDir: string,
@@ -345,8 +274,7 @@ async function scanManagedCategories(
       if (entry.name.startsWith(".")) continue;
       if (segments.length === 0 && entry.name === rootDir) continue;
       if (!entry.isDirectory()) continue;
-      // Symlinked dirs are never managed; walking them could escape the
-      // issues directory entirely.
+      // A symlinked dir could point anywhere, so never treat it as ours.
       if (entry.isSymbolicLink()) continue;
       const name = sanitizeName(entry.name);
       if (name === "") continue;

@@ -1,19 +1,9 @@
-/**
- * The `categorize` command: regenerate the category index pages from the
- * files already present in the output folder. Contains its orchestration
- * (`runCategorize`) alongside the cliffy command definition.
- */
-
 import { Command } from "@cliffy/command";
 
 import { reconcileCategories } from "../categories.ts";
 import { scanLocal } from "../pull.ts";
 import { elapsed } from "../util.ts";
 
-/**
- * The command itself, default-exported so `cli.ts` can lazy import the module
- * and hand it straight to `.command()`.
- */
 export default new Command()
   .description(
     "Re-categorise only (no Jira fetch, no credentials needed):\n" +
@@ -30,11 +20,6 @@ export default new Command()
     return runCategorize(options.out, options.dryRun ?? false);
   });
 
-/**
- * Standalone re-categorisation: regenerate the category index pages from
- * the files already present in `all/`. No network, no credentials, no
- * state file — a purely local reconcile.
- */
 export async function runCategorize(
   outDir: string,
   dryRun: boolean,
@@ -45,8 +30,6 @@ export async function runCategorize(
   );
   const local = await scanLocal(outDir, "*");
   await reconcileCategories(local, outDir, dryRun);
-  // As in `pull`: the index rows above carry the counts, so this keeps only
-  // the timing and the dry-run warning.
   console.log(
     `Categorised in ${elapsed(started)}${
       dryRun ? " — dry run: no changes written" : ""

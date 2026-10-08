@@ -1,14 +1,4 @@
 #!/usr/bin/env -S deno run --allow-net --allow-read --allow-write --allow-env
-/**
- * Jira issue pull tool.
- *
- * Fetches all issues for a project from Jira Cloud and lays them out on disk
- * as `.jira/issues/all/<KEY>.md`, pruning files so the local folder mirrors
- * Jira. Streams: pages are fetched while earlier pages render and write.
- *
- * Run via `deno task jira-local pull` (from the project root). Each command
- * lives in `commands/`. */
-
 import process from "node:process";
 
 import { Command } from "@cliffy/command";
@@ -30,26 +20,22 @@ async function main(): Promise<number> {
       "Pull Jira issues into a flat folder of <KEY>.md files and generate\n" +
         "categorised index pages.",
     )
-    // The action fires while parsing, before the subcommand's own action runs,
-    // so progress() is already in the right mode by the first report. Reading
-    // `options.verbose` after parse() would be too late.
+    // Option actions fire during the parse, before the subcommand's action
+    // runs, which is what progress() needs to see the right mode.
     .option(
       "--verbose",
       "Log one timestamped line per step instead of updating task lines in place.",
       { global: true, action: () => setVerbose(true) },
     )
-    // Task lines only. Cliffy renders help before it fires other options'
-    // actions, so a flag cannot reach the help output; that follows NO_COLOR
-    // (checked by cliffy itself) and the TTY check in style.ts.
+    // Cliffy prints help before any option action fires, so no flag can
+    // reach it; help follows NO_COLOR and the TTY check in style.ts instead.
     .option(
       "--no-color",
       "Disable colour in task lines.",
       { global: true, action: () => disableColour() },
     )
-    // Sub commands load on demand: a `pull` need not evaluate the prompt
-    // library `init` needs, and a `categorize` need not load the Jira client.
-    // Help and completions do load them all, since the descriptions they print
-    // live in the modules. Each command module default-exports its Command.
+    // Lazy so a pull never loads the prompt library, or vice versa. Help
+    // loads them all: their descriptions live in the modules.
     .command("pull", () => import("./commands/pull.ts"))
     .command("categorize", () => import("./commands/categorize.ts"))
     .command("init", () => import("./commands/init.ts"))

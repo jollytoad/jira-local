@@ -1,9 +1,8 @@
 /**
- * Minimal Atlassian Document Format (ADF) -> Markdown converter.
+ * Atlassian Document Format (ADF) -> Markdown.
  *
- * Covers the node/mark types that commonly appear in Jira Cloud issue
- * descriptions and comments. Anything unrecognised falls back to extracting
- * its inline text so content is never silently dropped.
+ * Unrecognised nodes fall back to rendering their children, so unknown markup
+ * costs formatting but never drops text.
  */
 
 import type { AdfMark, AdfNode } from "./types/adf.ts";
@@ -12,11 +11,10 @@ interface InlineOptions {
   inListItem?: boolean;
   inTable?: boolean;
   inQuote?: boolean;
-  /** Depth of nested task lists; used to indent sibling sub-lists. */
+  /** Nesting level, so a task list indents the sub-lists its siblings own. */
   taskDepth?: number;
 }
 
-/** Render an ADF document (or node) to markdown. */
 export function adfToMarkdown(node: AdfNode | null | undefined): string {
   if (!node || node.type !== "doc") {
     return node ? renderBlock(node, {}, false).trim() : "";
@@ -79,7 +77,7 @@ function renderBlock(
         .split("\n")
         .map((line) => (line.startsWith("> ") ? line : `> ${line}`))
         .join("\n");
-      // body lines are already quote-prefixed; the icon joins the first line.
+      // Lines are already quote-prefixed, so only the first takes the icon.
       return body.replace(/^> /, `> ${icon} `);
     }
     case "expand":
@@ -103,9 +101,8 @@ function renderBlock(
       return renderTable(node, opts);
     case "taskList":
     case "decisionList": {
-      // A taskList may directly contain nested taskLists (sibling of the
-      // items, per the ADF schema). A nested list renders with every line
-      // indented by its depth; plain lists stay flush.
+      // Per the ADF schema a nested taskList can sit beside the items rather
+      // than inside one, so depth travels with the options.
       const depth = opts.taskDepth ?? 0;
       const body = (node.content ?? [])
         .map((child) =>
@@ -132,7 +129,6 @@ function renderBlock(
         .map((child) => renderBlock(child, { ...opts, inListItem: true }, true))
         .join(" ")
         .trim();
-      // Nested task lists render as tail lines under the item, indented.
       const nested = (node.content ?? [])
         .filter((child) => child.type === "taskList")
         .map((child) => renderNestedBlock(child, opts))
@@ -220,7 +216,7 @@ function renderInlineNode(node: AdfNode, opts: InlineOptions): string {
 }
 
 function applyMarks(text: string, marks: AdfMark[]): string {
-  // Emphasis markers must hug non-space characters; keep edge padding outside.
+  // Markers must hug the non-space core, so edge whitespace stays outside.
   const lead = /^\s+/.exec(text)?.[0] ?? "";
   const trail = /\s+$/.exec(text)?.[0] ?? "";
   const core = text.slice(lead.length, text.length - trail.length);
@@ -277,7 +273,7 @@ function renderMediaBlock(node: AdfNode): string {
       const alt = typeof node.attrs?.["alt"] === "string"
         ? node.attrs["alt"]
         : "";
-      // External media carries a URL; Atlassian-hosted media carries an id.
+      // External media has a URL; Atlassian-hosted media only an id.
       const url = typeof node.attrs?.["url"] === "string"
         ? node.attrs["url"]
         : "";
@@ -300,8 +296,7 @@ function renderMediaBlock(node: AdfNode): string {
       return parts.join("\n\n");
     }
     case "mediaSingle": {
-      // mediaSingle carries [media] or [media, caption?]; join the caption
-      // to its media on one line.
+      // [media] or [media, caption?]: keep the caption on the media's line.
       const parts = (node.content ?? [])
         .map((child) =>
           child.type === "caption"
@@ -320,7 +315,6 @@ function renderMediaBlock(node: AdfNode): string {
   }
 }
 
-/** Caption content renders as an italic continuation of its media line. */
 function renderCaption(node: AdfNode): string {
   const text = (node.content ?? [])
     .map((child) => renderBlock(child, { inTable: false }, true))
@@ -384,8 +378,8 @@ function renderTable(table: AdfNode, opts: InlineOptions): string {
     row.type === "tableRow"
   );
   if (tableRows.length === 0) return "";
-  // ADF tables do not require a header row; without one, emit an empty
-  // header so the first data row is not swallowed by the separator.
+  // A headerless ADF table would otherwise lose its first data row into the
+  // separator, so give it an empty one.
   const hasHeader = (tableRows[0]?.content ?? []).some((cell) =>
     cell.type === "tableHeader"
   );

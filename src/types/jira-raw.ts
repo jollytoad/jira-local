@@ -1,26 +1,20 @@
-/**
- * Types of the raw data coming from the Jira Cloud REST v3 API: the issue
- * payload as Jira returns it, before any conversion to markdown/front-matter
- * (see `render.ts` and `types/jira-local.ts` for the converted shapes).
- */
+/** Jira Cloud REST v3 payloads, before conversion (see `render.ts`). */
 
 import type { AdfNode } from "./adf.ts";
 
-/** Jira Cloud credentials (basic auth). */
 export interface Credentials {
   site: string;
   email: string;
   token: string;
 }
 
-/** A Jira user reference (assignee, reporter, comment author, ...). */
+/** Users, projects and versions all spell their name differently. */
 export interface JiraUserRef {
   displayName?: string;
   name?: string;
   accountId?: string;
 }
 
-/** A Jira comment (embedded by search, or fetched per issue). */
 export interface JiraComment {
   id: string;
   author?: JiraUserRef | null;
@@ -29,7 +23,7 @@ export interface JiraComment {
   body?: AdfNode | string | null;
 }
 
-/** An embedded issue reference (parent, subtask, link end). */
+/** Parent, subtask or link end. */
 export interface JiraIssueRef {
   key?: string;
   fields?: {
@@ -38,14 +32,14 @@ export interface JiraIssueRef {
   } | null;
 }
 
-/** An issue link (direction and link type are unimportant to this tool). */
+/** Direction and link type are unimportant to this tool. */
 export interface JiraIssueLink {
   type?: { name?: string; inward?: string; outward?: string } | null;
   inwardIssue?: JiraIssueRef;
   outwardIssue?: JiraIssueRef;
 }
 
-/** A Jira issue as returned by the REST v3 search (subset we consume). */
+/** The subset of a search issue this tool consumes. */
 export interface JiraIssue {
   key: string;
   fields: {

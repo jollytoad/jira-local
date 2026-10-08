@@ -1,8 +1,3 @@
-/**
- * Pull logic: stream issues from Jira and mirror them into a flat folder of
- * `<KEY>.md` files, logging each action as it happens.
- */
-
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { Dirent } from "node:fs";
@@ -11,10 +6,8 @@ import { progress } from "./progress.ts";
 
 const ISSUE_FILE_PATTERN = /^([A-Za-z][A-Za-z0-9]*-\d+)\.md$/;
 
-/** Pull one streamed issue against the local tree. Returns the action taken. */
 export type PullAction = "create" | "update" | "unchanged";
 
-/** Scan the output folder for issue files belonging to `projectKey`. */
 export async function scanLocal(
   outDir: string,
   projectKey: string,
@@ -44,10 +37,6 @@ export async function scanLocal(
   return local;
 }
 
-/**
- * Write (or skip) a single streamed issue, reporting the action against its own
- * counted task line. Respects dry-run (decides but does not write).
- */
 export async function pullIssue(
   issue: PulledIssue,
   local: ReadonlyMap<string, LocalIssueFile[]>,
@@ -70,7 +59,7 @@ export async function pullIssue(
     await mkdir(outDir, { recursive: true });
     await writeFile(absPath, issue.markdown);
   }
-  // Unchanged issues stay silent: only report actual work.
+  // An unchanged issue is not work, so it stays unreported.
   if (action !== "unchanged") {
     progress({
       task: `issue-${action}`,
@@ -81,10 +70,6 @@ export async function pullIssue(
   return action;
 }
 
-/**
- * Delete local files for issues no longer present in Jira (prune enabled),
- * then remove the output folder if it is left empty.
- */
 export async function pruneDeleted(
   local: ReadonlyMap<string, LocalIssueFile[]>,
   seenKeys: ReadonlySet<string>,
@@ -107,13 +92,9 @@ export async function pruneDeleted(
   if (!dryRun && deleted > 0) {
     try {
       const remaining = await readdir(outDir);
-      const mdFiles = remaining.filter((name) => name.endsWith(".md"));
-      if (mdFiles.length === 0 && remaining.length > 0) {
-        // Only non-markdown leftovers (none expected): leave them alone.
-      }
       if (remaining.length === 0) await rm(outDir, { recursive: true });
     } catch {
-      // dir already gone or unreadable: nothing to do
+      // Already gone or unreadable: nothing to do.
     }
   }
   return deleted;

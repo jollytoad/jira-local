@@ -1,13 +1,3 @@
-/**
- * The `init` command: create a default `.jira/.config.ts` next to the issues
- * folder, refusing to touch an existing one. Interactive by default: prompts
- * for the site (full URL, domain, or bare site prefix — normalised), the
- * project key directly, and for email/token either a direct value or an
- * env-var name; skipped inputs keep the template defaults. `--yes/-y` (or a
- * non-TTY stdin) skips the prompts; connection flags prefill and skip their
- * prompt.
- */
-
 import { Command, ValidationError } from "@cliffy/command";
 import { Input, Select } from "@cliffy/prompt";
 import process from "node:process";
@@ -16,13 +6,11 @@ import { dirname, relative, resolve } from "node:path";
 
 import { configPath, getConfig } from "../config.ts";
 
-/** A connection field sourced directly or from an env var. */
 type FieldValue = { kind: "literal"; value: string } | {
   kind: "env";
   name: string;
 };
 
-/** The connection fields written into the config template. */
 interface Connection {
   site: string;
   project?: FieldValue;
@@ -40,10 +28,6 @@ export interface InitOptions {
 
 const DEFAULT_SITE = "https://your-site.atlassian.net";
 
-/**
- * The command itself, default-exported so `cli.ts` can lazy import the module
- * and hand it straight to `.command()`.
- */
 export default new Command()
   .description(
     "Create a default .jira/.config.ts (sibling of the issues folder).\n" +
@@ -128,7 +112,6 @@ export async function runInit(
   }
 
   await writeFile(config, template(connection));
-  // Prove the written file loads and validates (category fields are valid).
   await getConfig(outDir);
 
   const provided: string[] = [];
@@ -152,13 +135,13 @@ export async function runInit(
   );
 }
 
-/** Literal flag value, or undefined when absent/blank (leaves the default). */
+/** Blank counts as unset, keeping the template default. */
 function literal(value: string | undefined): FieldValue | undefined {
   const trimmed = value?.trim();
   return trimmed ? { kind: "literal", value: trimmed } : undefined;
 }
 
-/** Normalise a site input: URL, bare domain, or site prefix → base URL origin. */
+/** Site prefix, bare domain or URL in, base origin out. */
 function normalizeSite(raw: string): string {
   const trimmed = raw.trim().replace(/\/+$/, "");
   if (trimmed === "") {
@@ -181,12 +164,12 @@ function normalizeSite(raw: string): string {
     );
   }
   if (!url.hostname.includes(".")) {
+    // A bare site prefix ("mycompany") is an Atlassian Cloud tenant.
     url.hostname = `${url.hostname}.atlassian.net`;
   }
   return url.origin;
 }
 
-/** Ask for the site; an empty answer keeps the template placeholder. */
 async function promptSite(): Promise<string> {
   while (true) {
     const answer = (
@@ -203,17 +186,12 @@ async function promptSite(): Promise<string> {
   }
 }
 
-/** Ask for the project key; an empty answer keeps the template placeholder. */
 async function promptProject(): Promise<FieldValue | undefined> {
   const value = (await Input.prompt({ message: "Project key (Enter to skip)" }))
     .trim();
   return value === "" ? undefined : { kind: "literal", value };
 }
 
-/**
- * Ask how to source one connection field: a direct value, an env var (whose
- * name can be customised), or the template default. Empty value input skips.
- */
 async function promptField(
   name: string,
   envVar: string,
@@ -235,7 +213,7 @@ async function promptField(
   return value === "" ? undefined : { kind: "literal", value };
 }
 
-/** Ask for an env var name; an empty answer keeps the default name. */
+/** Empty answer keeps the default name. */
 async function promptEnvName(fallback: string): Promise<string> {
   while (true) {
     const answer = (
@@ -281,7 +259,6 @@ export const config: JiraLocalConfig = {
 `;
 }
 
-/** Render one connection field, falling back to the template default. */
 function fieldTemplate(
   value: FieldValue | undefined,
   fallback: string,

@@ -1,5 +1,3 @@
-/** Error types shared by the Jira client and the CLI. */
-
 export class JiraApiError extends Error {
   status: number;
   url: string;
@@ -14,7 +12,7 @@ export class JiraApiError extends Error {
   }
 }
 
-/** Credentials rejected (401) or lacking permission (403) — detected via `/myself`. */
+/** Only `/myself` reports auth failures honestly; the search endpoints do not. */
 export class JiraAuthError extends Error {
   status: number;
 
@@ -29,7 +27,6 @@ export class JiraAuthError extends Error {
   }
 }
 
-/** Project not found or not visible to the authenticated user (404). */
 export class JiraProjectError extends Error {
   project: string;
 
@@ -42,7 +39,6 @@ export class JiraProjectError extends Error {
   }
 }
 
-/** The paged search disagrees wildly with the independent count. */
 export class JiraSearchMismatchError extends Error {
   count: number;
   searchResults: number;
@@ -58,7 +54,7 @@ export class JiraSearchMismatchError extends Error {
   }
 }
 
-/** HTTP 429 with an optional Retry-After hint (internal to the fetch retry loop). */
+/** Internal to the fetch retry loop, never surfaced. */
 export class RateLimitError extends Error {
   retryAfterMs: number | undefined;
 
@@ -69,7 +65,6 @@ export class RateLimitError extends Error {
   }
 }
 
-/** The user configuration file (`.jira/.config.ts`) is missing or malformed. */
 export class ConfigError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);

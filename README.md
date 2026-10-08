@@ -1,31 +1,26 @@
 # jira-local
 
 > [!WARNING]
-> **Very experimental.** This project is being built mostly using
-> [OpenCode](https://opencode.ai) with GLM-5.3-Flash. It may change or break
-> without notice, and it has not been battle-tested. Use at your own risk.
+> **Very experimental.** Built mostly with [OpenCode](https://opencode.ai). It
+> may change or break without notice and has not been battle-tested. Use at your
+> own risk.
 
 A small Deno tool that mirrors a Jira Cloud project onto local disk as plain
-markdown — one file per issue — so you can grep, diff, and edit your issues with
+markdown — one file per issue — so you can grep, diff and edit your issues with
 the tools you already use.
-
-## How it works
 
 ```
 Jira Cloud ──stream──▶ render to markdown ──▶ .jira/issues/all/<KEY>.md
 ```
 
-- **Streaming pipeline.** Search pages are fetched one ahead of the other: while
-  page N is being rendered and written, page N+1 is already downloading.
-  Comments are embedded in the search response (per-issue fallback fetches kick
-  in automatically if a payload is ever truncated). A full pull of ~1,200 issues
-  takes ~9 seconds.
-- **Incremental by default.** A watermark (`.jira/.state.json`) remembers the
-  newest issue `updated` timestamp from the last clean run; subsequent pulls
-  fetch only issues changed since then (typically ~1 second). Use `--full` to
-  pull everything.
-- **Idempotent.** Files are compared byte-for-byte; a re-run writes nothing and
-  reports `N unchanged`.
+- **Streaming.** Search pages are fetched one ahead: while page N renders and
+  writes, page N+1 is already downloading. A full pull of ~1,200 issues takes
+  about 9 seconds; an incremental one about a second.
+- **Incremental by default.** `.jira/.state.json` remembers the newest issue
+  `updated` timestamp from the last clean run, and later pulls fetch only what
+  changed. `--full` ignores it.
+- **Idempotent.** Files are compared before writing, so a re-run with nothing
+  new to report rewrites nothing and stays quiet.
 
 Each issue file looks like:
 
@@ -72,8 +67,8 @@ url: "https://yoursite.atlassian.net/browse/EXAMPLE-123"
 ### Homebrew
 
 Prebuilt binaries for macOS (Apple Silicon and Intel) and Linux (x86_64 and
-arm64), no Deno install needed. The formula lives in this repo (not a
-`homebrew-*` tap repo), so tap it explicitly with the repo URL first:
+arm64), no Deno needed. The formula lives in this repo rather than a
+`homebrew-*` tap repo, so tap the URL explicitly first:
 
 ```sh
 brew tap jollytoad/jira-local https://github.com/jollytoad/jira-local
@@ -82,8 +77,8 @@ brew install jollytoad/jira-local/cli
 
 ### Deno
 
-Run the CLI straight from the published JSR package (or clone the repo and use
-the `deno task` entries):
+Run straight from the published JSR package (or clone the repo and use the
+`deno task` entries):
 
 ```sh
 deno run jsr:@jollytoad/jira-local/cli init
@@ -94,22 +89,30 @@ deno run jsr:@jollytoad/jira-local/cli categorize
 Permissions are still needed (network for `pull`, file access for
 `pull`/`categorize`), so grant them per-run as shown for `pull` above.
 
-## Setup
+### Standalone binary
 
-Run the interactive initialiser to create `.jira/.config.ts` (a sibling of the
-issues folder, never committed):
+Releases also carry per-platform tarballs: download one, untar, and put the
+`jira-local` binary on your `PATH`. To build locally:
+
+```sh
+deno task compile        # ./jira-local for this platform
+./jira-local init
+./jira-local pull
+```
+
+## Setup
 
 ```sh
 deno task jira-local init
 ```
 
-It prompts for the site (a full URL, bare domain, or site prefix — normalised to
-a base URL), the project key, and for email/token either a direct value or an
-environment-variable name (defaulting to `JIRA_EMAIL`/`JIRA_API_TOKEN`); skipped
-inputs keep the template defaults. Pass `--yes`/`-y` to skip the prompts (they
-are also skipped automatically when stdin is not a terminal), and
-`--site`/`--project`/`--email`/`--token` flags prefill and skip their prompt. It
-refuses to overwrite an existing config — edit that file instead.
+`init` creates `.jira/.config.ts` (a sibling of the issues folder, never
+committed) and refuses to overwrite an existing one. It prompts for the site (a
+full URL, bare domain or site prefix, normalised to a base URL), the project
+key, and for email/token either a direct value or an env-var name (defaulting to
+`JIRA_EMAIL`/`JIRA_API_TOKEN`); skipped inputs keep the template defaults. Pass
+`--yes`/`-y` to skip the prompts (they also skip automatically when stdin is not
+a terminal), or prefill them with `--site`/`--project`/`--email`/`--token`.
 
 The generated config is a TypeScript module exporting a `config` object:
 
@@ -126,32 +129,11 @@ export const config: JiraLocalConfig = {
 ```
 
 The tool itself never reads environment variables — the config is a TS module,
-so you opt into env access there (`token: process.env.JIRA_API_TOKEN`). To feed
-those variables from a file, put them in a gitignored `.env` (same `KEY=VALUE`
-lines) and run through the `deno task` entries, which pass `--env-file`; the
-compiled binary reads no `.env` at all. All connection settings can also be
-overridden per-run with `--site`/`--project`/`--email`/ `--token`.
-
-### Standalone executable
-
-Releases also contain versioned tarballs
-(`jira-local-v<version>-<target>.tar.gz`) for `aarch64-apple-darwin`,
-`x86_64-apple-darwin`, `x86_64-unknown-linux-gnu` and
-`aarch64-unknown-linux-gnu` — download one, untar, and put the `jira-local`
-binary on your `PATH`. Locally the tool compiles to a self-contained binary that
-needs no Deno install:
-
-```sh
-deno task compile        # produces ./jira-local (current platform)
-./jira-local init        # provide config interactively
-./jira-local pull        # fetch all issues from the configured project
-./jira-local categorize  # generate category indexes
-```
-
-The binary reads no `.env` file: it gets values from `.jira/.config.ts`, the
-flags, or environment variables the config itself reads via `process.env.*`.
-Cross-compile to another platform with `--target` (e.g.
-`--target aarch64-unknown-linux-gnu`).
+so you opt into env access there. To feed those variables from a file, use a
+gitignored `.env` (plain `KEY=VALUE` lines) and run through the `deno task`
+entries, which pass `--env-file`; the compiled binary reads no `.env` at all.
+All connection settings can also be overridden per-run with
+`--site`/`--project`/`--email`/`--token`.
 
 ## Usage
 
@@ -180,67 +162,63 @@ deno task ok                          # deno fmt && deno lint && deno check
 
 Global flags (accepted before or after the sub-command):
 
-| Flag         | Meaning                                                               | Default                     |
-| ------------ | --------------------------------------------------------------------- | --------------------------- |
-| `--verbose`  | One timestamped line per step instead of task lines updating in place | task lines on a terminal    |
-| `--no-color` | Disable colour in task lines                                          | colour when stdout is a tty |
-
-Colour also honours `NO_COLOR` (which overrides everything), `FORCE_COLOR`, and
-`TERM=dumb`; see [Colour](#colour). `--no-color` reaches the task lines only —
-help output is rendered before flags are parsed, so it follows `NO_COLOR` and
-the tty check instead.
+| Flag         | Meaning                                                      | Default                     |
+| ------------ | ------------------------------------------------------------ | --------------------------- |
+| `--verbose`  | One timestamped line per step instead of in-place task lines | task lines on a terminal    |
+| `--no-color` | Disable colour in task lines                                 | colour when stdout is a tty |
 
 ### Colour
 
-On a terminal, the in-place task lines are coloured: yellow spinner while a task
-runs, green ✔ when it succeeds, red ✘ when it fails, a muted dot leader and a
-bold tally. Labels stay the default foreground. Piped output and `--verbose` are
-plain text with no escape codes at all.
+On a terminal the in-place task lines are coloured: yellow spinner while a task
+runs, green ✔ on success, red ✘ on failure, a muted dot leader and a bold tally.
+Piped output and `--verbose` are plain text with no escape codes at all.
 
 Colour is off when stdout is not a terminal, when `TERM=dumb`, when `NO_COLOR`
-is set, or when `--no-color` is passed. `FORCE_COLOR` turns it on regardless —
-which is what makes coloured help useful in a CI log, since the task lines
-themselves are never painted when piped.
+is set, or when `--no-color` is passed; `FORCE_COLOR` turns it on regardless,
+which is what makes coloured help useful in a CI log. `NO_COLOR` wins over
+everything, including `--no-color`.
+
+`--no-color` reaches the task lines only — help is rendered before flags are
+parsed, so help follows `NO_COLOR` and the tty check instead.
 
 ### Files on disk
 
-| Path                         | What it is                                                                                                                                                                                                               |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `.jira/issues/all/<KEY>.md`  | One markdown file per issue (regenerated, safe to delete)                                                                                                                                                                |
-| `.jira/issues/<category>.md` | Index pages, e.g. `status/Backlog.md`, `assignee/`, `labels/` or `parent/<KEY>.md` (every category here other than `all/` is managed; done issues are status-only; names mirror the front-matter field they derive from) |
-| `.jira/.state.json`          | Incremental watermark + timezone + project (delete it to force a full pull)                                                                                                                                              |
-| `.jira/.config.ts`           | Connection settings and optional config: which categories get index pages; created by `init` (not committed; missing file = defaults)                                                                                    |
-| `.env`                       | Optional: values for the `process.env.*` reads in `.jira/.config.ts`, loaded by the `deno task` entries via `--env-file` (not committed; the tool never reads env vars itself)                                           |
+| Path                         | What it is                                                  |
+| ---------------------------- | ----------------------------------------------------------- |
+| `.jira/issues/all/<KEY>.md`  | One markdown file per issue; regenerated, safe to delete    |
+| `.jira/issues/<category>.md` | Index pages, e.g. `status/Backlog.md` (see Configuration)   |
+| `.jira/.state.json`          | Incremental watermark; delete to force a full pull          |
+| `.jira/.config.ts`           | Connection settings and category config; created by `init`  |
+| `.env`                       | Optional values for the `process.env.*` reads in the config |
+
+`.jira/` and `.env` are gitignored, and `.jira/` is safe to delete at any time.
 
 ### Configuration
 
-`.jira/.config.ts` (a sibling of `issues/`, created by `init`) holds the
-connection fields (`site`, `project`, `email`, `token` — used by pull, ignored
-by categorise) and optionally restricts which index pages the categoriser
-materialises. It is a TypeScript module exporting a `config` object; the
-category field is optional and a missing file means "index pages everywhere,
-with default columns":
+Besides the connection fields, `.jira/.config.ts` can restrict which index pages
+get materialised. Omit `categoryIndex` for index pages everywhere with default
+columns:
 
 ```ts
 import type { JiraLocalConfig } from "jsr:@jollytoad/jira-local";
 
 export const config: JiraLocalConfig = {
   // Index pages per top-level category, with table columns (front-matter
-  // field names). Categories not listed here get nothing; omit
-  // `categoryIndex` entirely for index pages everywhere with
-  // `["key", "summary"]` columns.
+  // field names). Categories not listed here get nothing.
   categoryIndex: {
     status: ["key", "summary", "assignee"],
   },
 };
 ```
 
-A malformed config (category names or columns that aren't front-matter field
-names) aborts the run with a validation error before anything is written.
+Index pages hold a markdown table sorted by issue key; `key` renders as a link
+into `all/`, any other column as the raw front-matter value. Names are
+front-matter field names, enforced at type-check and runtime: a config naming
+anything else aborts the run with a validation error before anything is written.
 
 ## Semantics and caveats
 
-- **Deletes:** Jira issue _deletions_ are only pruned on a full pull, because an
+- **Deletes:** Jira issue _deletions_ are pruned only on a full pull, because an
   incremental run cannot know what it did not look at. Run `--full`
   occasionally, or after deleting issues.
 - **Overwrite-only:** local edits to the markdown files are overwritten on the
@@ -248,47 +226,39 @@ names) aborts the run with a validation error before anything is written.
   Jira.
 - **Clock:** the watermark uses Jira's own `updated` timestamps (rendered in the
   account's timezone), not your machine's clock, so local clock skew is
-  irrelevant. A 1-minute overlap absorbs edits in the watermark minute.
+  irrelevant. A one-minute overlap absorbs edits in the watermark's own minute.
 - **Aborted runs:** the watermark only advances after a run completes, so an
   interrupted pull simply re-pulls the same window next time.
 - **Comment truncation:** Jira's search embeds at most 100 comments per issue;
   the tool detects truncation (`total` vs returned count) and transparently
-  falls back to per-issue comment fetches when needed.
+  falls back to per-issue comment fetches.
 
 ## Development
 
-Source lives in `src/`:
+| File                  | Role                                                                                         |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| `cli.ts`              | Entry: builds/parses the cliffy Command, maps errors to exit codes                           |
+| `commands/*.ts`       | One per subcommand — `pull`, `categorize`, `init` — each default-exporting its `Command`     |
+| `jira.ts`             | REST v3 client: search paging with lookahead, comments, retries/429 backoff, incremental JQL |
+| `render.ts`           | Issue → markdown (front matter, description, comments)                                       |
+| `adf-to-markdown.ts`  | Atlassian Document Format → markdown                                                         |
+| `pull.ts`             | Per-issue create/update/unchanged, pruning, progress lines                                   |
+| `categorize.ts`       | The one `categorizeIssue` function: front matter + body → category strings                   |
+| `categories.ts`       | Reconciles categories into index pages next to `all/`                                        |
+| `category-indexes.ts` | Renders a category's index table                                                             |
+| `config.ts`           | Loads/validates `.jira/.config.ts`, cached `getConfig`                                       |
+| `state.ts`            | Incremental watermark load/save                                                              |
+| `progress.ts`         | Task lines on a tty, timestamped lines when piped or `--verbose`                             |
+| `style.ts`            | Colour gate (NO_COLOR / FORCE_COLOR / TERM / TTY) and the palette                            |
+| `errors.ts`           | Error types shared by the client and CLI                                                     |
+| `constants.ts`        | Front-matter field names, for config validation                                              |
+| `types/`              | Types only, split by domain: `adf`, `jira-raw`, `jira-local`, `config`                       |
+| `util.ts`             | Small shared helpers (bounded-concurrency pool)                                              |
 
-| File                     | Role                                                                                                                                           |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cli.ts`                 | Entry: builds the cliffy `Command` (`pull`, `categorize`, `init` subcommands, lazy-imported) + help, parses, maps runtime errors to exit codes |
-| `commands/pull.ts`       | Default-exports the `pull` command: connection resolution, preflight, stream → mirror loop, state, summary                                     |
-| `commands/categorize.ts` | Default-exports the `categorize` command: offline re-categorisation of the files already on disk                                               |
-| `commands/init.ts`       | Default-exports the `init` command: prompts, site normalisation, writes the `.jira/.config.ts` template                                        |
-| `errors.ts`              | Error types shared by the client and CLI                                                                                                       |
-| `jira.ts`                | Jira REST v3 client: search paging (with lookahead), comments, retries/429 backoff, incremental JQL                                            |
-| `render.ts`              | Issue → markdown (front matter, description, comments)                                                                                         |
-| `adf-to-markdown.ts`     | Atlassian Document Format → markdown converter                                                                                                 |
-| `pull.ts`                | Per-issue create/update/unchanged decisions, pruning, progress lines                                                                           |
-| `categorize.ts`          | The single `categorizeIssue` function: front matter + body → category strings (`/` nests categories)                                           |
-| `categories.ts`          | Reconciles those categories into index pages next to `all/`                                                                                    |
-| `category-indexes.ts`    | Renders per-category index tables (`<category>.md`, one page per category)                                                                     |
-| `config.ts`              | Loads/validates `.jira/.config.ts` (connection fields, index pages), cached `getConfig`                                                        |
-| `state.ts`               | Incremental watermark load/save                                                                                                                |
-| `constants.ts`           | Shared runtime constants (front-matter field names for config validation)                                                                      |
-| `types/`                 | Types only (interfaces/type aliases), split by domain: `adf.ts`, `jira-raw.ts`, `jira-local.ts`, `config.ts`                                   |
-| `util.ts`                | Small shared helpers (pool)                                                                                                                    |
-| `progress.ts`            | Progress reporting: in-place task lines with a spinner on a terminal, plain timestamped lines when piped or `--verbose`                        |
-| `style.ts`               | Terminal colour gate (NO_COLOR / FORCE_COLOR / TERM / TTY) and the palette wrappers                                                            |
-
-Run checks with `deno task ok` (fmt, lint, type-check). Runtime dependencies
-([pinned by `deno.lock`](./deno.lock)):
-[`@cliffy/command`](https://jsr.io/@cliffy/command) (the CLI) and
-[`@cliffy/prompt`](https://jsr.io/@cliffy/prompt) (init's interactive prompts),
-[`@std/front-matter`](https://jsr.io/@std/front-matter) (issue front-matter
-parsing for categorisation), [`@std/yaml`](https://jsr.io/@std/yaml)
-(front-matter rendering) and [`@std/fmt`](https://jsr.io/@std/fmt) (terminal
-colour).
+Runtime dependencies are pinned by [`deno.lock`](./deno.lock): `@cliffy/command`
+(the CLI), `@cliffy/prompt` (init's prompts), `@std/front-matter` (parsing issue
+front matter for categorisation), `@std/yaml` (rendering front matter) and
+`@std/fmt` (terminal colour).
 
 ## Troubleshooting
 

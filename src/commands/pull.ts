@@ -1,10 +1,3 @@
-/**
- * The `pull` command: fetch issues from Jira and mirror them into the local
- * output folder, then re-categorise. Contains its orchestration (`runPull`)
- * alongside the cliffy command definition. Connection settings (site,
- * project, email, token) resolve with precedence flags > `.jira/.config.ts`.
- */
-
 import { Command, ValidationError } from "@cliffy/command";
 import process from "node:process";
 import { resolve } from "node:path";
@@ -39,10 +32,6 @@ export interface PullOptions {
   token?: string;
 }
 
-/**
- * The command itself, default-exported so `cli.ts` can lazy import the module
- * and hand it straight to `.command()`.
- */
 export default new Command()
   .description(
     "Pull Jira issues into a flat folder of <KEY>.md files and generate\n" +
@@ -166,8 +155,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
   const local = await scanLocal(outDir, project);
   const seenKeys = new Set<string>();
   let issueCount = 0;
-  // Watermark candidate: newest `updated` seen this run. Only promoted into
-  // the state file after the whole stream completes without error.
+  // Promoted into the state file only once the whole stream finishes cleanly.
   let maxUpdated: string | undefined = previous?.maxUpdated;
 
   progress({ task: "render", msg: "rendering issues", status: "start" });
@@ -182,10 +170,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
       },
     })
   ) {
-    // Transform the raw issue into its parsed file content, then into the
-    // final markdown record.
-    const content = jiraIssueToContent(issue, creds.site);
-    const pulled = contentToPulledIssue(content);
+    const pulled = contentToPulledIssue(jiraIssueToContent(issue, creds.site));
     seenKeys.add(pulled.key);
     issueCount++;
     progress({ task: "render", msg: `issue rendered (${issue.key})`, inc: 1 });
@@ -209,19 +194,15 @@ export async function runPull(cli: PullOptions): Promise<void> {
     );
   }
 
-  // Pruning needs full knowledge of the issue set: skip it in incremental
-  // mode (a key absent from the update window is not necessarily deleted).
+  // A key missing from the update window is not proof it was deleted.
   if (cli.prune && !incremental) {
     await pruneDeleted(local, seenKeys, outDir, cli.dryRun);
   }
 
-  // Refresh the category index pages (cheap: re-categorises everything in
-  // `all/`).
   await reconcileCategories(local, outDir, cli.dryRun);
 
-  // Settle the per-issue counting rows: they carry no lifecycle of their own, so
-  // nothing else would end their spinner. `stop` drops any row that never
-  // counted, so a no-op pull shows only the work it actually did.
+  // These rows only ever count, so nothing else would stop their spinners.
+  // `stop` drops a row that never counted, keeping a no-op pull quiet.
   progress({ task: "issue-create", msg: "issues created", status: "stop" });
   progress({ task: "issue-update", msg: "issues updated", status: "stop" });
   progress({ task: "issue-delete", msg: "issues deleted", status: "stop" });
@@ -236,9 +217,8 @@ export async function runPull(cli: PullOptions): Promise<void> {
     await saveState(stateFile, next);
   }
 
-  // The task rows above already carry the counts; this line keeps only what
-  // they cannot express — how long the run took, which mode it ran in, and
-  // whether anything was actually written.
+  // What the task rows above cannot say: duration, mode, and whether
+  // anything was written.
   console.log(
     `${incremental ? "Incremental pull" : "Full pull"} in ${elapsed(started)}${
       incremental ? ` since ${updatedSince}` : ""
@@ -246,10 +226,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
   );
 }
 
-/**
- * Credentials come from flags, falling back to the config file; empty or
- * whitespace-only values are treated as unset.
- */
+/** Flags beat the config file; blank values count as unset. */
 function resolveCredentials(
   cli: PullOptions,
   config: JiraLocalConfig,
@@ -260,11 +237,8 @@ function resolveCredentials(
   return { site: cli.site ?? config.site ?? "", email, token };
 }
 
-/**
- * Jira renders `updated` in the account's timezone; the watermark is stored
- * and queried in that same format. A minute of overlap absorbs edits that
- * land in the same minute as the previous watermark (JQL has no seconds).
- */
+// Jira renders `updated` in the account's timezone and JQL has no seconds,
+// so rewind a minute to catch edits landing in the watermark's own minute.
 function overlapWindow(maxUpdated: string): string {
   const d = new Date(`${maxUpdated.replace(" ", "T")}:00`);
   if (Number.isNaN(d.getTime())) return maxUpdated;
@@ -275,7 +249,7 @@ function overlapWindow(maxUpdated: string): string {
   }:${pad(d.getMinutes())}`;
 }
 
-/** "yyyy-MM-ddTHH:mm:ss.fff+zz" (Jira) -> "yyyy-MM-dd HH:mm" (same tz). */
+/** "yyyy-MM-ddTHH:mm:ss.fff+zz" -> "yyyy-MM-dd HH:mm", same timezone. */
 function truncateToMinute(iso: string): string {
   const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(iso);
   return m ? `${m[1]} ${m[2]}` : iso;

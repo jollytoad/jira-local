@@ -1,5 +1,3 @@
-/** Minimal Jira Cloud REST v3 client for the pull tool. */
-
 import {
   JiraApiError,
   JiraAuthError,
@@ -18,9 +16,9 @@ const COMMENT_CONCURRENCY = 5;
 const MAX_RETRIES = 3;
 
 /**
- * Decide what a 0-issue fetch means. A non-zero count alongside an empty
- * search result is always a failure; a genuine empty project must opt in
- * via `allowEmpty` before the pull is allowed to prune.
+ * An empty search result is ambiguous: a non-zero count means auth or
+ * visibility failed, so a genuinely empty project must opt in via `allowEmpty`
+ * before a pull may prune.
  */
 export function validateFetchResult(
   fetched: number,
@@ -74,11 +72,9 @@ const ISSUE_FIELDS = [
 ];
 
 /**
- * Fail fast on bad credentials. Crucially, the search endpoints do NOT
- * return 401 on auth failure — they degrade to an anonymous query and
- * silently return an empty (but well-formed) result. `/myself` is one of
- * the endpoints that does report auth errors honestly, so we probe it
- * before trusting any search result.
+ * The search endpoints do NOT return 401 on auth failure — they degrade to an
+ * anonymous query and return an empty but well-formed result. `/myself` is
+ * honest about auth, so probe it before trusting any search result.
  */
 export async function preflightAuth(
   creds: Credentials,
@@ -100,10 +96,7 @@ export async function preflightAuth(
   }
 }
 
-/**
- * Verify the project exists and is visible to the authenticated user.
- * 404 here means either a wrong key or missing Browse Projects permission.
- */
+/** A 404 here means a wrong key or missing Browse Projects permission. */
 export async function preflightProject(
   creds: Credentials,
   project: string,
@@ -123,10 +116,9 @@ export async function preflightProject(
 }
 
 /**
- * Independent estimate of how many issues the JQL matches. The enhanced
- * search can legitimately lag recent updates, and both it and this count
- * endpoint share the silent-empty failure mode, so a large discrepancy is
- * treated as a failure rather than truth.
+ * A second opinion on the result size: the paged search can lag recent
+ * updates, and this endpoint shares the silent-empty failure mode, so a large
+ * discrepancy is a failure rather than truth.
  */
 export async function countIssues(
   creds: Credentials,
@@ -151,16 +143,12 @@ export async function countIssues(
 }
 
 /**
- * Fetch every issue in `project` (all statuses, optionally limited to
- * issues updated after `updatedSince`) and stream them as raw `JiraIssue`s
- * with a complete comment list attached to `fields.comment`.
+ * Streams: the next search page downloads while the current page's issues are
+ * completed (comment fetches in parallel) and yielded.
  *
- * Streams: the next search page starts downloading while the current
- * page's issues are completed (comment fetches in parallel) and yielded.
- *
- * `sawUpdated` (when provided) is called with the raw `updated` timestamp
- * of every fetched issue, including the newest per page — used by the
- * caller to advance the incremental watermark on clean completion.
+ * `sawUpdated` gets the raw `updated` of every fetched issue, including the
+ * newest per page, so the caller can advance the watermark only on a clean
+ * completion.
  */
 export async function* fetchJiraIssues(
   creds: Credentials,
@@ -193,14 +181,12 @@ export async function* fetchJiraIssues(
 
   progress({ task: "fetch", msg: "issues fetched", status: "start" });
 
-  // Start the first fetch immediately.
   let pending: Promise<SearchResponse> | undefined = fetchPage();
 
   while (pending) {
     const page: SearchResponse = await pending;
     const issues: JiraIssue[] = page.issues ?? [];
     progress({ task: "fetch", msg: "issues fetched", inc: issues.length });
-    // Begin the next page before completing this one.
     const next: Promise<SearchResponse> | undefined = page.nextPageToken
       ? fetchPage(page.nextPageToken)
       : undefined;
@@ -235,10 +221,7 @@ export async function* fetchJiraIssues(
   }
 }
 
-/**
- * Whether the comments embedded in the search payload are the complete
- * list: present, and matching the total when that is known.
- */
+/** Search may inline a truncated comment list; fall back when it did. */
 function hasAllComments(
   issue: JiraIssue,
 ): issue is JiraIssue & { fields: { comment: { comments: JiraComment[] } } } {
@@ -308,7 +291,7 @@ async function requestJson<T>(
       });
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      continue; // network error: retry
+      continue;
     }
 
     if (response.status === 429) {

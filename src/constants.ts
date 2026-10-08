@@ -1,10 +1,5 @@
-/**
- * Shared runtime constants for the jira-local tool (types live in `src/types/`).
- */
-
 import type { IssueFrontMatter } from "./types/jira-local.ts";
 
-/** All front-matter field names (runtime list for config validation). */
 export const FRONT_MATTER_KEYS = [
   "key",
   "summary",
