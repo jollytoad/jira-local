@@ -149,7 +149,7 @@ A binary installed by the install script replaces itself in place:
 
 ```sh
 jira-local upgrade                     # latest release
-jira-local upgrade --version 0.1.1     # pin a version
+jira-local upgrade --version 0.1.1     # pin a version (v prefix optional)
 jira-local upgrade --list-versions     # what is available
 jira-local upgrade --force             # reinstall even if up to date
 ```

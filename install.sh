@@ -16,7 +16,7 @@ usage() {
 Install $name into a directory on your PATH.
 
   --prefix <dir>    Where to put the binary (default: $prefix)
-  --version <ver>   Release to install, e.g. 0.1.2 or v0.1.2 (default: latest)
+  --version <ver>   Release to install, e.g. 0.2.0 or v0.2.0 (default: latest)
   -h, --help        Show this help
 USAGE
 }
