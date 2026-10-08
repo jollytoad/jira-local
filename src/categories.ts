@@ -17,11 +17,12 @@ import {
 } from "./category-indexes.ts";
 import { getConfig, isFrontMatterKey } from "./config.ts";
 import { categorizeIssue } from "./categorize.ts";
+import { listIssueFiles } from "./mirror.ts";
+import { FRONT_MATTER_KEYS } from "./constants.ts";
 import type {
+  FrontMatterKey,
   IndexColumn,
-  IssueFileContent,
   IssueFrontMatter,
-  LocalIssueFile,
 } from "./types/jira-local.ts";
 import type { JiraLocalConfig } from "./types/config.ts";
 import { progress } from "./progress.ts";
@@ -33,23 +34,16 @@ export interface CategoryCounters {
   indexesUnchanged: number;
 }
 
-interface DesiredIndexes {
-  /** Rendered markdown per category ("status/Backlog" -> file content). */
-  content: Map<string, string>;
-  /** Issues per category, for the index tables. */
-  rows: Map<string, IndexRow[]>;
-}
-
 const UNSAFE_CHARS = /[\/\\:*?"<>|\p{C}]/gu;
 
 export async function reconcileCategories(
-  local: ReadonlyMap<string, LocalIssueFile[]>,
   allDir: string,
+  projectKey: string,
   dryRun: boolean,
 ): Promise<CategoryCounters> {
   // Validate before writing anything, so a bad config aborts rather than
   // leaving the tree half-reconciled.
-  const config = await getConfig(allDir);
+  const config = await getConfig();
   const counters: CategoryCounters = {
     indexesCreated: 0,
     indexesUpdated: 0,
@@ -58,12 +52,12 @@ export async function reconcileCategories(
   };
   const categoriesDir = dirname(allDir);
   const scanned = await scanManagedCategories(categoriesDir, basename(allDir));
-  const indexes = buildDesired(local, allDir, config);
+  const content = await buildDesired(allDir, projectKey, config);
 
   // Nested categories can be new, so create the parent directory on demand.
-  for (const category of byDepth(indexes.content.keys())) {
+  for (const category of byDepth(content.keys())) {
     const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
-    const content = indexes.content.get(category) ?? "";
+    const rendered = content.get(category) ?? "";
     const rel = relative(categoriesDir, indexPath).replaceAll(sep, "/");
     let existing: string | undefined;
     try {
@@ -71,13 +65,13 @@ export async function reconcileCategories(
     } catch {
       existing = undefined; // missing or unreadable: treat as to-be-created
     }
-    if (existing === content) {
+    if (existing === rendered) {
       counters.indexesUnchanged++;
       continue;
     }
     if (!dryRun) {
       await mkdir(dirname(indexPath), { recursive: true });
-      await writeFile(indexPath, content);
+      await writeFile(indexPath, rendered);
     }
     if (existing === undefined) {
       counters.indexesCreated++;
@@ -90,7 +84,7 @@ export async function reconcileCategories(
 
   // Anything on disk no longer in the desired set is stale and goes.
   for (const category of scanned) {
-    if (indexes.content.has(category)) continue;
+    if (content.has(category)) continue;
     const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
     const rel = relative(categoriesDir, indexPath).replaceAll(sep, "/");
     let exists = false;
@@ -113,51 +107,46 @@ export async function reconcileCategories(
   return counters;
 }
 
-function buildDesired(
-  local: ReadonlyMap<string, LocalIssueFile[]>,
+/**
+ * Reads the issue files itself rather than taking a snapshot, so pages are
+ * always built from what is on disk at call time.
+ */
+async function buildDesired(
   allDir: string,
+  projectKey: string,
   config: JiraLocalConfig,
-): DesiredIndexes {
+): Promise<Map<string, string>> {
   const categoriesDir = dirname(allDir);
-  const rows = new Map<string, IndexRow[]>();
-  // Columns per indexed leaf category; undefined = no index page.
-  const columnsByCategory = new Map<string, readonly IndexColumn[]>();
-  for (const files of local.values()) {
-    for (const file of files) {
-      const issue = parseIssueFile(file.content);
-      for (const raw of categorizeIssue(issue)) {
-        const segments = sanitizeCategoryPath(raw);
-        if (segments.length === 0) continue;
-        const category = segments.join("/");
-        const topLevel = segments[0] ?? "";
-        const targetAbs = join(allDir, `${file.key}.md`);
-
-        const indexTargetRel = relative(
+  const pending = new Map<
+    string,
+    { rows: IndexRow[]; columns: readonly IndexColumn[] }
+  >();
+  for (const file of await listIssueFiles(allDir, projectKey)) {
+    const frontMatter = await readFrontMatter(file.absPath);
+    for (const raw of categorizeIssue({ frontMatter, body: "" })) {
+      const segments = sanitizeCategoryPath(raw);
+      if (segments.length === 0) continue;
+      const category = segments.join("/");
+      const columns = indexOfCategory(config, segments[0] ?? "");
+      if (columns === undefined) continue;
+      const entry = pending.get(category) ?? { rows: [], columns };
+      entry.rows.push({
+        key: file.key,
+        frontMatter,
+        targetRel: relative(
           join(categoriesDir, ...segments),
-          targetAbs,
-        ).replaceAll(sep, "/");
-        const rowsForCategory = rows.get(category) ?? [];
-        rowsForCategory.push({
-          key: file.key,
-          frontMatter: issue.frontMatter,
-          targetRel: indexTargetRel,
-        });
-        rows.set(category, rowsForCategory);
-        const columns = indexOfCategory(config, topLevel);
-        if (columns !== undefined) {
-          columnsByCategory.set(category, columns);
-        }
-      }
+          file.absPath,
+        ).replaceAll(sep, "/"),
+      });
+      pending.set(category, entry);
     }
   }
   const content = new Map<string, string>();
-  for (const [category, rowsForCategory] of rows) {
-    const columns = columnsByCategory.get(category);
-    if (columns === undefined) continue; // not indexed: no page
-    rowsForCategory.sort((a, b) => a.key.localeCompare(b.key));
-    content.set(category, renderIndex(category, rowsForCategory, columns));
+  for (const [category, { rows, columns }] of pending) {
+    rows.sort((a, b) => a.key.localeCompare(b.key));
+    content.set(category, renderIndex(category, rows, columns));
   }
-  return { content, rows };
+  return content;
 }
 
 function indexOfCategory(
@@ -169,70 +158,41 @@ function indexOfCategory(
   return config.categoryIndex[topLevel];
 }
 
-/** Bad front matter degrades to defaults so categorisation never crashes a pull. */
-function parseIssueFile(content: string): IssueFileContent {
+/** Bad front matter degrades to defaults so categorisation never crashes. */
+async function readFrontMatter(absPath: string): Promise<IssueFrontMatter> {
+  let content: string;
   try {
-    if (!test(content)) {
-      return { frontMatter: emptyFrontMatter(), body: content };
-    }
-    const { attrs, body } = extract<Record<string, unknown>>(content);
-    return { frontMatter: coerceFrontMatter(attrs), body };
+    content = await readFile(absPath, "utf8");
   } catch {
-    return { frontMatter: emptyFrontMatter(), body: content };
+    return coerceFrontMatter({});
+  }
+  try {
+    if (!test(content)) return coerceFrontMatter({});
+    return coerceFrontMatter(extract<Record<string, unknown>>(content).attrs);
+  } catch {
+    return coerceFrontMatter({});
   }
 }
 
-function emptyFrontMatter(): IssueFrontMatter {
-  return {
-    key: "",
-    summary: "",
-    status: "",
-    statusCategory: "",
-    type: "",
-    priority: "",
-    assignee: "",
-    reporter: "",
-    labels: [],
-    parent: "",
-    children: [],
-    linked: [],
-    created: "",
-    updated: "",
-    url: "",
-  };
-}
+// Coerced by incoming type, so only the array-valued fields need naming; the
+// rest follow FRONT_MATTER_KEYS.
+const ARRAY_FIELDS = new Set<FrontMatterKey>(["labels", "children", "linked"]);
 
 function coerceFrontMatter(attrs: Record<string, unknown>): IssueFrontMatter {
-  const stringOf = (key: string): string => {
+  const out: Record<string, string | string[]> = {};
+  for (const key of FRONT_MATTER_KEYS) {
     const value = attrs[key];
-    if (typeof value === "string") return value;
-    if (value === null || value === undefined) return "";
-    return String(value);
-  };
-  const arrayOf = (key: string): string[] => {
-    const value = attrs[key];
-    if (Array.isArray(value)) return value.map((item) => String(item));
-    if (value === null || value === undefined) return [];
-    return [String(value)];
-  };
-  return {
-    ...emptyFrontMatter(),
-    key: stringOf("key"),
-    summary: stringOf("summary"),
-    status: stringOf("status"),
-    statusCategory: stringOf("statusCategory"),
-    type: stringOf("type"),
-    priority: stringOf("priority"),
-    assignee: stringOf("assignee"),
-    reporter: stringOf("reporter"),
-    labels: arrayOf("labels"),
-    parent: stringOf("parent"),
-    children: arrayOf("children"),
-    linked: arrayOf("linked"),
-    created: stringOf("created"),
-    updated: stringOf("updated"),
-    url: stringOf("url"),
-  };
+    if (ARRAY_FIELDS.has(key)) {
+      out[key] = Array.isArray(value)
+        ? value.map((item) => String(item))
+        : value == null
+        ? []
+        : [String(value)];
+    } else {
+      out[key] = value == null ? "" : String(value);
+    }
+  }
+  return out as unknown as IssueFrontMatter;
 }
 
 /** Unsafe characters and whitespace collapse to spaces; optionally clipped. */

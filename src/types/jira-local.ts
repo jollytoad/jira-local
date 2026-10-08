@@ -34,11 +34,15 @@ export interface PulledIssue {
   markdown: string;
 }
 
-export interface LocalIssueFile {
+export interface IssueFileRef {
   key: string;
   absPath: string;
   relPath: string;
-  content: string;
+}
+
+export interface LocalIssueFile extends IssueFileRef {
+  /** SHA-256 of the file's bytes: enough to detect a change, cheap to keep. */
+  hash: string;
 }
 
 /** Persisted as `.jira/.state.json`. */

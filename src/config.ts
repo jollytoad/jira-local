@@ -3,29 +3,28 @@
  * imported rather than parsed, so the file itself decides where its values
  * come from (including `process.env`) and the tool reads no env vars itself.
  *
- * Cached per path, so callers that know the issues folder can load the config
+ * Cached per path, so callers that already know the config path can load it
  * themselves instead of threading it around. Missing file = all defaults.
  */
 import process from "node:process";
 import { stat } from "node:fs/promises";
 
-import { dirname, join, relative } from "node:path";
+import { join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { ConfigError } from "./errors.ts";
-import { FRONT_MATTER_KEYS } from "./constants.ts";
+import { FRONT_MATTER_KEYS, JIRA_DIR } from "./constants.ts";
 import type { FrontMatterKey, IndexColumn } from "./types/jira-local.ts";
 import type { JiraLocalConfig } from "./types/config.ts";
 
 /** Sibling of the issues folder, like the state file. */
-export function configPath(outDir: string): string {
-  const grandParent = dirname(dirname(outDir));
-  return join(grandParent, ".config.ts");
+export function configPath(): string {
+  return join(process.cwd(), JIRA_DIR, ".config.ts");
 }
 
 const cache = new Map<string, JiraLocalConfig>();
 
-export async function getConfig(allDir: string): Promise<JiraLocalConfig> {
-  const path = configPath(allDir);
+export async function getConfig(): Promise<JiraLocalConfig> {
+  const path = configPath();
   const key = pathToFileURL(path).href;
   const cached = cache.get(key);
   if (cached) return cached;

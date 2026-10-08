@@ -106,13 +106,14 @@ deno task compile        # ./jira-local for this platform
 deno task jira-local init
 ```
 
-`init` creates `.jira/.config.ts` (a sibling of the issues folder, never
-committed) and refuses to overwrite an existing one. It prompts for the site (a
-full URL, bare domain or site prefix, normalised to a base URL), the project
-key, and for email/token either a direct value or an env-var name (defaulting to
-`JIRA_EMAIL`/`JIRA_API_TOKEN`); skipped inputs keep the template defaults. Pass
-`--yes`/`-y` to skip the prompts (they also skip automatically when stdin is not
-a terminal), or prefill them with `--site`/`--project`/`--email`/`--token`.
+`init` creates `.jira/.config.ts` (inside `.jira/`, next to the issues folder,
+never committed) and refuses to overwrite an existing one. It prompts for the
+site (a full URL, bare domain or site prefix, normalised to a base URL), the
+project key, and for email/token either a direct value or an env-var name
+(defaulting to `JIRA_EMAIL`/`JIRA_API_TOKEN`); skipped inputs keep the template
+defaults. Pass `--yes`/`-y` to skip the prompts (they also skip automatically
+when stdin is not a terminal), or prefill them with
+`--site`/`--project`/`--email`/`--token`.
 
 The generated config is a TypeScript module exporting a `config` object:
 
@@ -153,7 +154,6 @@ deno task ok                          # deno fmt && deno lint && deno check
 | --------------------- | ------------------------------------------------------ | ---------------------- |
 | `--site <url>`        | Jira Cloud base URL                                    | `.config.ts` `site`    |
 | `--project <key>`     | Project key                                            | `.config.ts` `project` |
-| `--out <dir>`         | Output directory                                       | `.jira/issues/all`     |
 | `--email` / `--token` | Override the config credentials                        | —                      |
 | `--dry-run`           | Decide but write nothing (state file untouched)        | —                      |
 | `--no-prune`          | Skip deleting files for issues deleted in Jira         | prune on               |
@@ -235,25 +235,25 @@ anything else aborts the run with a validation error before anything is written.
 
 ## Development
 
-| File                  | Role                                                                                         |
-| --------------------- | -------------------------------------------------------------------------------------------- |
-| `cli.ts`              | Entry: builds/parses the cliffy Command, maps errors to exit codes                           |
-| `commands/*.ts`       | One per subcommand — `pull`, `categorize`, `init` — each default-exporting its `Command`     |
-| `jira.ts`             | REST v3 client: search paging with lookahead, comments, retries/429 backoff, incremental JQL |
-| `render.ts`           | Issue → markdown (front matter, description, comments)                                       |
-| `adf-to-markdown.ts`  | Atlassian Document Format → markdown                                                         |
-| `pull.ts`             | Per-issue create/update/unchanged, pruning, progress lines                                   |
-| `categorize.ts`       | The one `categorizeIssue` function: front matter + body → category strings                   |
-| `categories.ts`       | Reconciles categories into index pages next to `all/`                                        |
-| `category-indexes.ts` | Renders a category's index table                                                             |
-| `config.ts`           | Loads/validates `.jira/.config.ts`, cached `getConfig`                                       |
-| `state.ts`            | Incremental watermark load/save                                                              |
-| `progress.ts`         | Task lines on a tty, timestamped lines when piped or `--verbose`                             |
-| `style.ts`            | Colour gate (NO_COLOR / FORCE_COLOR / TERM / TTY) and the palette                            |
-| `errors.ts`           | Error types shared by the client and CLI                                                     |
-| `constants.ts`        | Front-matter field names, for config validation                                              |
-| `types/`              | Types only, split by domain: `adf`, `jira-raw`, `jira-local`, `config`                       |
-| `util.ts`             | Small shared helpers (bounded-concurrency pool)                                              |
+| File                  | Role                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------- |
+| `cli.ts`              | Entry: builds/parses the cliffy Command, maps errors to exit codes                                 |
+| `commands/*.ts`       | One per subcommand — `pull`, `categorize`, `init` — each default-exporting its `Command`           |
+| `jira.ts`             | REST v3 client: search paging with lookahead, comments, retries/429 backoff, incremental JQL       |
+| `render.ts`           | Issue → markdown (front matter, description, comments)                                             |
+| `adf-to-markdown.ts`  | Atlassian Document Format → markdown                                                               |
+| `mirror.ts`           | The disk mirror: locate issue files, write one, prune deleted ones                                 |
+| `categorize.ts`       | The one `categorizeIssue` function: front matter + body → category strings                         |
+| `categories.ts`       | Reconciles categories into index pages next to `all/`, reading each issue's front matter from disk |
+| `category-indexes.ts` | Renders a category's index table                                                                   |
+| `config.ts`           | Loads/validates `.jira/.config.ts`, cached `getConfig`                                             |
+| `state.ts`            | Incremental watermark load/save                                                                    |
+| `progress.ts`         | Task lines on a tty, timestamped lines when piped or `--verbose`                                   |
+| `style.ts`            | Colour gate (NO_COLOR / FORCE_COLOR / TERM / TTY) and the palette                                  |
+| `errors.ts`           | Error types shared by the client and CLI                                                           |
+| `constants.ts`        | Front-matter field names, for config validation                                                    |
+| `types/`              | Types only, split by domain: `adf`, `jira-raw`, `jira-local`, `config`                             |
+| `util.ts`             | Small shared helpers (bounded-concurrency pool)                                                    |
 
 Runtime dependencies are pinned by [`deno.lock`](./deno.lock): `@cliffy/command`
 (the CLI), `@cliffy/prompt` (init's prompts), `@std/front-matter` (parsing issue

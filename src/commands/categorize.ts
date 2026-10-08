@@ -1,7 +1,9 @@
 import { Command } from "@cliffy/command";
+import process from "node:process";
+import { resolve } from "node:path";
 
 import { reconcileCategories } from "../categories.ts";
-import { scanLocal } from "../pull.ts";
+import { ISSUES_DIR } from "../constants.ts";
 import { elapsed } from "../util.ts";
 
 export default new Command()
@@ -10,26 +12,18 @@ export default new Command()
       "regenerate the category index pages from the files in the output\n" +
       "folder.",
   )
-  .option(
-    "--out <dir:string>",
-    "Output directory, relative to the project root.",
-    { default: ".jira/issues/all" },
-  )
   .option("--dry-run", "Print the plan without writing anything.")
   .action((options) => {
-    return runCategorize(options.out, options.dryRun ?? false);
+    return runCategorize(options.dryRun ?? false);
   });
 
-export async function runCategorize(
-  outDir: string,
-  dryRun: boolean,
-): Promise<void> {
+export async function runCategorize(dryRun: boolean): Promise<void> {
   const started = Date.now();
+  const outDir = resolve(process.cwd(), ISSUES_DIR);
   console.log(
     `Re-categorising issues in ${outDir}${dryRun ? " (dry-run)" : ""}...`,
   );
-  const local = await scanLocal(outDir, "*");
-  await reconcileCategories(local, outDir, dryRun);
+  await reconcileCategories(outDir, "*", dryRun);
   console.log(
     `Categorised in ${elapsed(started)}${
       dryRun ? " — dry run: no changes written" : ""

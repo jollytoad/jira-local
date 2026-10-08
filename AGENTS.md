@@ -12,6 +12,15 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
 deno task compile                     # self-contained binary (--target to cross-compile)
 ```
 
+## Comments
+
+Write few comments, and only when the code leaves a decision unexplained.
+Explain why, never what: if a name already says what something is, add nothing.
+Leave out a restatement of the code, a function's own parameters, and any note
+that something was removed. Worth keeping: an external quirk you had to work
+around, a limit that forced the shape of the code, and an assumption a later
+edit could break by accident.
+
 ## Constraints
 
 - Cross-runtime only: no `Deno.*` globals, use the `node:` builtins
@@ -27,8 +36,8 @@ deno task compile                     # self-contained binary (--target to cross
   (converted front matter/file data, the field-name vocabulary, pipeline
   shapes), `config.ts` (the published `JiraLocalConfig`).
 - The `pull`/`categorize` tasks use unscoped `--allow-write`, a legacy of the
-  removed symlink-folder feature; the grants must also cover a custom `--out`.
-  The code itself only ever writes inside `.jira`.
+  removed symlink-folder feature. The code itself only ever writes inside
+  `.jira/`, at the fixed paths in `constants.ts` (`JIRA_DIR`, `ISSUES_DIR`).
 - The tool reads no environment variables. The config is a TS module, so users
   opt into env access there (`token: process.env.JIRA_API_TOKEN`). The deno
   tasks pass `--env-file` for a gitignored `.env`; the compiled binary reads
@@ -73,20 +82,27 @@ To release: bump `version` in `deno.json`, then create a GitHub release tagged
 `src/cli.ts` builds the cliffy `Command` (`jira-local` with `pull`, `categorize`
 and `init`), parses it and maps runtime errors to exit codes. Pipeline:
 `jira.ts` (REST v3, streaming pages with lookahead) → `adf-to-markdown.ts` →
-`render.ts` → `pull.ts` (mirror issues to disk) → `commands/`; watermark in
+`render.ts` → `mirror.ts` (write issues to disk) → `commands/`; watermark in
 `state.ts`, config in `config.ts`, progress in `progress.ts` + `style.ts`,
 errors in `errors.ts`.
 
 - Each command lives in `src/commands/<name>.ts` with its orchestration
   (`runPull`/`runCategorize`) beside the definition.
-- `.jira/.config.ts` (sibling of `issues/`, gitignored, `export const config`):
-  connection fields `site`/`project`/`email`/`token` (used by pull, ignored by
-  categorize, validated as non-empty strings, resolving with precedence flags >
-  config) plus the optional `categoryIndex` map (category → columns, an
-  allowlist: omitted categories get no index; omit the whole field for index
-  pages everywhere with the default columns). Keys and columns must be
-  front-matter field names, enforced at type-check and runtime. Missing file =
-  defaults, which then makes a missing site/project a hard error.
+- Disk is the only source of truth for categorisation. `mirror.ts` keeps just a
+  SHA-256 per issue file (never the content) to detect changes, and
+  `categories.ts` reads each issue's front matter itself, so an index page can
+  never be built from a pre-pull snapshot.
+- `configPath()`, `statePath()` and `getConfig()` take no directory: everything
+  is anchored to `process.cwd()` plus `JIRA_DIR`. `getConfig()` stays cached per
+  path.
+- `.jira/.config.ts` (gitignored, `export const config`): connection fields
+  `site`/`project`/`email`/`token` (used by pull, ignored by categorize,
+  validated as non-empty strings, resolving with precedence flags > config) plus
+  the optional `categoryIndex` map (category → columns, an allowlist: omitted
+  categories get no index; omit the whole field for index pages everywhere with
+  the default columns). Keys and columns must be front-matter field names,
+  enforced at type-check and runtime. Missing file = defaults, which then makes
+  a missing site/project a hard error.
 - Categories: `categorize.ts` holds the only `categorizeIssue` function (front
   matter + body → category strings, `/` nests); `categories.ts` reconciles those
   into index pages next to `all/` (`status/<status>.md`, plus `assignee/`,
@@ -100,7 +116,8 @@ errors in `errors.ts`.
   category; columns come from `categoryIndex` (default `DEFAULT_INDEX_COLUMNS` =
   `["key", "summary"]`, `key` linking into `all/`), rows sorted by key. Written
   only when content differs, removed when the category goes stale or loses its
-  index entry.
+  index entry. A pull that wrote and pruned nothing skips reconciliation
+  entirely — the pages cannot have changed.
 - `.jira/` is gitignored generated output and safe to delete; deleting
   `.jira/.state.json` forces a full pull.
 - The mirror is one-way (Jira → disk): local edits to `.jira/issues/all/*.md`

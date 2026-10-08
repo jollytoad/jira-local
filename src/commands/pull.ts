@@ -11,9 +11,10 @@ import {
   preflightProject,
   validateFetchResult,
 } from "../jira.ts";
-import { pruneDeleted, pullIssue, scanLocal } from "../pull.ts";
+import { pruneDeleted, pullIssue, scanLocal } from "../mirror.ts";
 import { contentToPulledIssue, jiraIssueToContent } from "../render.ts";
 import { loadState, saveState, statePath } from "../state.ts";
+import { ISSUES_DIR } from "../constants.ts";
 import type { Credentials } from "../types/jira-raw.ts";
 import type { PullState } from "../types/jira-local.ts";
 import type { JiraLocalConfig } from "../types/config.ts";
@@ -23,7 +24,6 @@ import { progress } from "../progress.ts";
 export interface PullOptions {
   site?: string;
   project?: string;
-  out: string;
   dryRun: boolean;
   prune: boolean;
   allowEmpty: boolean;
@@ -42,11 +42,6 @@ export default new Command()
     "Jira Cloud base URL.",
   )
   .option("--project <key:string>", "Project key.")
-  .option(
-    "--out <dir:string>",
-    "Output directory, relative to the project root.",
-    { default: ".jira/issues/all" },
-  )
   .option(
     "--email <email:string>",
     "Atlassian account email.",
@@ -72,7 +67,6 @@ export default new Command()
     const cli: PullOptions = {
       site: options.site,
       project: options.project,
-      out: options.out,
       dryRun: options.dryRun ?? false,
       prune: options.prune ?? true,
       allowEmpty: options.allowEmpty ?? false,
@@ -84,10 +78,9 @@ export default new Command()
   });
 
 export async function runPull(cli: PullOptions): Promise<void> {
-  const cwd = process.cwd();
-  const outDir = resolve(cwd, cli.out);
+  const outDir = resolve(process.cwd(), ISSUES_DIR);
 
-  const config = await getConfig(outDir);
+  const config = await getConfig();
   const site = (cli.site ?? config.site ?? "").trim().replace(/\/+$/, "");
   const project = (cli.project ?? config.project ?? "").trim();
   if (!site || !project) {
@@ -132,7 +125,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
   await preflightProject(creds, project);
   progress({ task: "project", status: "ok" });
 
-  const stateFile = statePath(outDir);
+  const stateFile = statePath();
   const previous = await loadState(stateFile);
   const incremental = !cli.full && previous !== undefined &&
     previous.project === project;
@@ -155,6 +148,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
   const local = await scanLocal(outDir, project);
   const seenKeys = new Set<string>();
   let issueCount = 0;
+  let written = 0;
   // Promoted into the state file only once the whole stream finishes cleanly.
   let maxUpdated: string | undefined = previous?.maxUpdated;
 
@@ -174,7 +168,9 @@ export async function runPull(cli: PullOptions): Promise<void> {
     seenKeys.add(pulled.key);
     issueCount++;
     progress({ task: "render", msg: `issue rendered (${issue.key})`, inc: 1 });
-    await pullIssue(pulled, local, outDir, cli.dryRun);
+    if (await pullIssue(pulled, local, outDir, cli.dryRun) !== "unchanged") {
+      written++;
+    }
   }
 
   progress({ task: "render", msg: "issues rendered", status: "ok" });
@@ -195,11 +191,17 @@ export async function runPull(cli: PullOptions): Promise<void> {
   }
 
   // A key missing from the update window is not proof it was deleted.
+  let pruned = 0;
   if (cli.prune && !incremental) {
-    await pruneDeleted(local, seenKeys, outDir, cli.dryRun);
+    pruned = await pruneDeleted(local, seenKeys, outDir, cli.dryRun);
   }
 
-  await reconcileCategories(local, outDir, cli.dryRun);
+  // Pages depend only on issue front matter, so a run that changed nothing has
+  // nothing to reconcile. In dry-run they reflect the unchanged files on disk,
+  // not the writes the run declined to make.
+  if (written > 0 || pruned > 0) {
+    await reconcileCategories(outDir, project, cli.dryRun);
+  }
 
   // These rows only ever count, so nothing else would stop their spinners.
   // `stop` drops a row that never counted, keeping a no-op pull quiet.

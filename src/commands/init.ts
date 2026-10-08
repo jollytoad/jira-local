@@ -2,7 +2,7 @@ import { Command, ValidationError } from "@cliffy/command";
 import { Input, Select } from "@cliffy/prompt";
 import process from "node:process";
 import { mkdir, stat, writeFile } from "node:fs/promises";
-import { dirname, relative, resolve } from "node:path";
+import { dirname, relative } from "node:path";
 
 import { configPath, getConfig } from "../config.ts";
 
@@ -36,11 +36,6 @@ export default new Command()
       "not a terminal); connection flags prefill and skip their prompt.",
   )
   .option(
-    "--out <dir:string>",
-    "Output directory, relative to the project root.",
-    { default: ".jira/issues/all" },
-  )
-  .option(
     "--site <url:string>",
     "Write this Jira Cloud base URL into the config (URL, domain, or site prefix).",
   )
@@ -55,7 +50,7 @@ export default new Command()
   )
   .option("-y, --yes", "Skip the prompts; use the flags or the defaults.")
   .action((options) => {
-    return runInit(options.out, {
+    return runInit({
       site: options.site,
       project: options.project,
       email: options.email,
@@ -64,12 +59,8 @@ export default new Command()
     });
   });
 
-export async function runInit(
-  out: string,
-  options: InitOptions,
-): Promise<void> {
-  const outDir = resolve(process.cwd(), out);
-  const config = configPath(outDir);
+export async function runInit(options: InitOptions): Promise<void> {
+  const config = configPath();
 
   await mkdir(dirname(config), { recursive: true });
 
@@ -112,7 +103,7 @@ export async function runInit(
   }
 
   await writeFile(config, template(connection));
-  await getConfig(outDir);
+  await getConfig();
 
   const provided: string[] = [];
   if (connection.site !== DEFAULT_SITE) provided.push("site");
