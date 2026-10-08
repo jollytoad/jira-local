@@ -1,17 +1,16 @@
 import { readFile, writeFile } from "node:fs/promises";
 
-const ROOT = new URL("../", import.meta.url);
-const VERSION_FILE = new URL("src/version.ts", ROOT);
+import deno from "../deno.json" with { type: "json" };
 
-const deno = JSON.parse(
-  await readFile(new URL("deno.json", ROOT), "utf8"),
-) as { version: string };
+const VERSION_FILE = new URL("../src/version.ts", import.meta.url);
 
-const contents =
-  `/** Generated from deno.json by \`deno task version\` — do not hand-edit. */
-
-export const VERSION = ${JSON.stringify(deno.version)};
-`;
+const version = JSON.stringify(deno.version);
+const contents = [
+  "/** Generated from deno.json by `deno task version` — do not hand-edit. */",
+  "",
+  `export const VERSION = ${version};`,
+  "",
+].join("\n");
 
 // Skipping an identical write keeps `git diff --exit-code` in CI meaningful.
 const current = await readFile(VERSION_FILE, "utf8").catch(() => "");
