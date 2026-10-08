@@ -56,7 +56,16 @@ deno task jira-local categorize       # re-categorise only (offline; pull also d
 - `src/cli.ts` builds the cliffy `Command` (`jira-local` with `pull`,
   `categorize` and `init` subcommands), parses it and maps runtime errors to
   exit codes; each command lives in `src/commands/<name>.ts` with its
-  orchestration (`runPull`/`runCategorize`) next to its definition.
+  orchestration (`runPull`/`runCategorize`) next to its definition. Commands are
+  registered lazily (`.command("pull", () => import("./commands/pull.ts"))`) and
+  each module **default-exports its `Command`** — that pairing is what cliffy's
+  lazy overload accepts; a module exporting only a factory function fails to
+  type-check next to a `no-` prefixed global option.
+- Global options: `--verbose` (plain timestamped lines) and `--no-color` (task
+  lines only — cliffy renders help before option actions fire, so help follows
+  `NO_COLOR`/the tty check). Colour itself is `src/style.ts`: `NO_COLOR` wins,
+  then `--no-color`, then `FORCE_COLOR`/`TERM=dumb`/tty. Help output inherits
+  that state because cliffy 1.3 reads the same `@std/fmt/colors` state.
 - Connection settings (site, project, email, token) resolve with precedence
   flags > `.jira/.config.ts`. The tool never reads environment variables — the
   config is a TS module, so the user opts into env access there

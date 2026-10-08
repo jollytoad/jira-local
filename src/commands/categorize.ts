@@ -10,23 +10,25 @@ import { reconcileCategories } from "../categories.ts";
 import { scanLocal } from "../pull.ts";
 import { elapsed } from "../util.ts";
 
-export function categorizeCommand() {
-  return new Command()
-    .description(
-      "Re-categorise only (no Jira fetch, no credentials needed):\n" +
-        "regenerate the category index pages from the files in the output\n" +
-        "folder.",
-    )
-    .option(
-      "--out <dir:string>",
-      "Output directory, relative to the project root.",
-      { default: ".jira/issues/all" },
-    )
-    .option("--dry-run", "Print the plan without writing anything.")
-    .action((options) => {
-      return runCategorize(options.out, options.dryRun ?? false);
-    });
-}
+/**
+ * The command itself, default-exported so `cli.ts` can lazy import the module
+ * and hand it straight to `.command()`.
+ */
+export default new Command()
+  .description(
+    "Re-categorise only (no Jira fetch, no credentials needed):\n" +
+      "regenerate the category index pages from the files in the output\n" +
+      "folder.",
+  )
+  .option(
+    "--out <dir:string>",
+    "Output directory, relative to the project root.",
+    { default: ".jira/issues/all" },
+  )
+  .option("--dry-run", "Print the plan without writing anything.")
+  .action((options) => {
+    return runCategorize(options.out, options.dryRun ?? false);
+  });
 
 /**
  * Standalone re-categorisation: regenerate the category index pages from

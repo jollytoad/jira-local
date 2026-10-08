@@ -165,6 +165,8 @@ deno task ok                          # deno fmt && deno lint && deno check
 
 ### Options
 
+`pull` flags:
+
 | Flag                  | Meaning                                                | Default                |
 | --------------------- | ------------------------------------------------------ | ---------------------- |
 | `--site <url>`        | Jira Cloud base URL                                    | `.config.ts` `site`    |
@@ -175,6 +177,30 @@ deno task ok                          # deno fmt && deno lint && deno check
 | `--no-prune`          | Skip deleting files for issues deleted in Jira         | prune on               |
 | `--allow-empty`       | Accept a 0-issue result (genuinely empty project)      | off                    |
 | `--full`              | Ignore the watermark; pull everything; enables pruning | incremental            |
+
+Global flags (accepted before or after the sub-command):
+
+| Flag         | Meaning                                                               | Default                     |
+| ------------ | --------------------------------------------------------------------- | --------------------------- |
+| `--verbose`  | One timestamped line per step instead of task lines updating in place | task lines on a terminal    |
+| `--no-color` | Disable colour in task lines                                          | colour when stdout is a tty |
+
+Colour also honours `NO_COLOR` (which overrides everything), `FORCE_COLOR`, and
+`TERM=dumb`; see [Colour](#colour). `--no-color` reaches the task lines only —
+help output is rendered before flags are parsed, so it follows `NO_COLOR` and
+the tty check instead.
+
+### Colour
+
+On a terminal, the in-place task lines are coloured: yellow spinner while a task
+runs, green ✔ when it succeeds, red ✘ when it fails, a muted dot leader and a
+bold tally. Labels stay the default foreground. Piped output and `--verbose` are
+plain text with no escape codes at all.
+
+Colour is off when stdout is not a terminal, when `TERM=dumb`, when `NO_COLOR`
+is set, or when `--no-color` is passed. `FORCE_COLOR` turns it on regardless —
+which is what makes coloured help useful in a CI log, since the task lines
+themselves are never painted when piped.
 
 ### Files on disk
 
@@ -233,27 +259,27 @@ names) aborts the run with a validation error before anything is written.
 
 Source lives in `src/`:
 
-| File                     | Role                                                                                                                            |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `cli.ts`                 | Entry: builds the cliffy `Command` (`pull`, `categorize`, `init` subcommands) + help, parses, maps runtime errors to exit codes |
-| `commands/pull.ts`       | The `pull` command: connection resolution, preflight, stream → mirror loop, state, summary                                      |
-| `commands/categorize.ts` | The `categorize` command: offline re-categorisation of the files already on disk                                                |
-| `commands/init.ts`       | The `init` command: prompts, site normalisation, writes the `.jira/.config.ts` template                                         |
-| `errors.ts`              | Error types shared by the client and CLI                                                                                        |
-| `jira.ts`                | Jira REST v3 client: search paging (with lookahead), comments, retries/429 backoff, incremental JQL                             |
-| `render.ts`              | Issue → markdown (front matter, description, comments)                                                                          |
-| `adf-to-markdown.ts`     | Atlassian Document Format → markdown converter                                                                                  |
-| `pull.ts`                | Per-issue create/update/unchanged decisions, pruning, progress lines                                                            |
-| `categorize.ts`          | The single `categorizeIssue` function: front matter + body → category strings (`/` nests categories)                            |
-| `categories.ts`          | Reconciles those categories into index pages next to `all/`                                                                     |
-| `category-indexes.ts`    | Renders per-category index tables (`<category>.md`, one page per category)                                                      |
-| `config.ts`              | Loads/validates `.jira/.config.ts` (connection fields, index pages), cached `getConfig`                                         |
-| `state.ts`               | Incremental watermark load/save                                                                                                 |
-| `constants.ts`           | Shared runtime constants (front-matter field names for config validation)                                                       |
-| `types/`                 | Types only (interfaces/type aliases), split by domain: `adf.ts`, `jira-raw.ts`, `jira-local.ts`, `config.ts`                    |
-| `util.ts`                | Small shared helpers (pool)                                                                                                     |
-| `progress.ts`            | Progress reporting: in-place task lines with a spinner on a terminal, plain timestamped lines when piped or `--verbose`         |
-| `style.ts`               | Terminal colour gate (NO_COLOR / FORCE_COLOR / TERM / TTY) and the palette wrappers                                             |
+| File                     | Role                                                                                                                                           |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cli.ts`                 | Entry: builds the cliffy `Command` (`pull`, `categorize`, `init` subcommands, lazy-imported) + help, parses, maps runtime errors to exit codes |
+| `commands/pull.ts`       | Default-exports the `pull` command: connection resolution, preflight, stream → mirror loop, state, summary                                     |
+| `commands/categorize.ts` | Default-exports the `categorize` command: offline re-categorisation of the files already on disk                                               |
+| `commands/init.ts`       | Default-exports the `init` command: prompts, site normalisation, writes the `.jira/.config.ts` template                                        |
+| `errors.ts`              | Error types shared by the client and CLI                                                                                                       |
+| `jira.ts`                | Jira REST v3 client: search paging (with lookahead), comments, retries/429 backoff, incremental JQL                                            |
+| `render.ts`              | Issue → markdown (front matter, description, comments)                                                                                         |
+| `adf-to-markdown.ts`     | Atlassian Document Format → markdown converter                                                                                                 |
+| `pull.ts`                | Per-issue create/update/unchanged decisions, pruning, progress lines                                                                           |
+| `categorize.ts`          | The single `categorizeIssue` function: front matter + body → category strings (`/` nests categories)                                           |
+| `categories.ts`          | Reconciles those categories into index pages next to `all/`                                                                                    |
+| `category-indexes.ts`    | Renders per-category index tables (`<category>.md`, one page per category)                                                                     |
+| `config.ts`              | Loads/validates `.jira/.config.ts` (connection fields, index pages), cached `getConfig`                                                        |
+| `state.ts`               | Incremental watermark load/save                                                                                                                |
+| `constants.ts`           | Shared runtime constants (front-matter field names for config validation)                                                                      |
+| `types/`                 | Types only (interfaces/type aliases), split by domain: `adf.ts`, `jira-raw.ts`, `jira-local.ts`, `config.ts`                                   |
+| `util.ts`                | Small shared helpers (pool)                                                                                                                    |
+| `progress.ts`            | Progress reporting: in-place task lines with a spinner on a terminal, plain timestamped lines when piped or `--verbose`                        |
+| `style.ts`               | Terminal colour gate (NO_COLOR / FORCE_COLOR / TERM / TTY) and the palette wrappers                                                            |
 
 Run checks with `deno task ok` (fmt, lint, type-check). Runtime dependencies
 ([pinned by `deno.lock`](./deno.lock)):

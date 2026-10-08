@@ -40,43 +40,45 @@ export interface InitOptions {
 
 const DEFAULT_SITE = "https://your-site.atlassian.net";
 
-export function initCommand() {
-  return new Command()
-    .description(
-      "Create a default .jira/.config.ts (sibling of the issues folder).\n" +
-        "Refuses to overwrite an existing config. Prompts interactively\n" +
-        "unless --yes/-y is passed (prompts are also skipped when stdin is\n" +
-        "not a terminal); connection flags prefill and skip their prompt.",
-    )
-    .option(
-      "--out <dir:string>",
-      "Output directory, relative to the project root.",
-      { default: ".jira/issues/all" },
-    )
-    .option(
-      "--site <url:string>",
-      "Write this Jira Cloud base URL into the config (URL, domain, or site prefix).",
-    )
-    .option("--project <key:string>", "Write this project key into the config.")
-    .option(
-      "--email <email:string>",
-      "Write this Atlassian account email into the config.",
-    )
-    .option(
-      "--token <secret:string>",
-      "Write this Atlassian API token into the config.",
-    )
-    .option("-y, --yes", "Skip the prompts; use the flags or the defaults.")
-    .action((options) => {
-      return runInit(options.out, {
-        site: options.site,
-        project: options.project,
-        email: options.email,
-        token: options.token,
-        yes: options.yes,
-      });
+/**
+ * The command itself, default-exported so `cli.ts` can lazy import the module
+ * and hand it straight to `.command()`.
+ */
+export default new Command()
+  .description(
+    "Create a default .jira/.config.ts (sibling of the issues folder).\n" +
+      "Refuses to overwrite an existing config. Prompts interactively\n" +
+      "unless --yes/-y is passed (prompts are also skipped when stdin is\n" +
+      "not a terminal); connection flags prefill and skip their prompt.",
+  )
+  .option(
+    "--out <dir:string>",
+    "Output directory, relative to the project root.",
+    { default: ".jira/issues/all" },
+  )
+  .option(
+    "--site <url:string>",
+    "Write this Jira Cloud base URL into the config (URL, domain, or site prefix).",
+  )
+  .option("--project <key:string>", "Write this project key into the config.")
+  .option(
+    "--email <email:string>",
+    "Write this Atlassian account email into the config.",
+  )
+  .option(
+    "--token <secret:string>",
+    "Write this Atlassian API token into the config.",
+  )
+  .option("-y, --yes", "Skip the prompts; use the flags or the defaults.")
+  .action((options) => {
+    return runInit(options.out, {
+      site: options.site,
+      project: options.project,
+      email: options.email,
+      token: options.token,
+      yes: options.yes,
     });
-}
+  });
 
 export async function runInit(
   out: string,

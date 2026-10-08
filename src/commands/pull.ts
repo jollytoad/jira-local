@@ -39,58 +39,60 @@ export interface PullOptions {
   token?: string;
 }
 
-export function pullCommand() {
-  return new Command()
-    .description(
-      "Pull Jira issues into a flat folder of <KEY>.md files and generate\n" +
-        "categorised index pages.",
-    )
-    .option(
-      "--site <url:string>",
-      "Jira Cloud base URL.",
-    )
-    .option("--project <key:string>", "Project key.")
-    .option(
-      "--out <dir:string>",
-      "Output directory, relative to the project root.",
-      { default: ".jira/issues/all" },
-    )
-    .option(
-      "--email <email:string>",
-      "Atlassian account email.",
-    )
-    .option(
-      "--token <secret:string>",
-      "Atlassian API token.",
-    )
-    .option("--dry-run", "Print the plan without writing anything.")
-    .option(
-      "--no-prune",
-      "Do not delete files for issues no longer present in Jira.",
-    )
-    .option(
-      "--allow-empty",
-      "Permit a zero-issue result (required if the project is legitimately empty).",
-    )
-    .option(
-      "--full",
-      "Pull all issues, rather then an incremental update.",
-    )
-    .action((options) => {
-      const cli: PullOptions = {
-        site: options.site,
-        project: options.project,
-        out: options.out,
-        dryRun: options.dryRun ?? false,
-        prune: options.prune ?? true,
-        allowEmpty: options.allowEmpty ?? false,
-        full: options.full ?? false,
-        email: options.email,
-        token: options.token,
-      };
-      return runPull(cli);
-    });
-}
+/**
+ * The command itself, default-exported so `cli.ts` can lazy import the module
+ * and hand it straight to `.command()`.
+ */
+export default new Command()
+  .description(
+    "Pull Jira issues into a flat folder of <KEY>.md files and generate\n" +
+      "categorised index pages.",
+  )
+  .option(
+    "--site <url:string>",
+    "Jira Cloud base URL.",
+  )
+  .option("--project <key:string>", "Project key.")
+  .option(
+    "--out <dir:string>",
+    "Output directory, relative to the project root.",
+    { default: ".jira/issues/all" },
+  )
+  .option(
+    "--email <email:string>",
+    "Atlassian account email.",
+  )
+  .option(
+    "--token <secret:string>",
+    "Atlassian API token.",
+  )
+  .option("--dry-run", "Print the plan without writing anything.")
+  .option(
+    "--no-prune",
+    "Do not delete files for issues no longer present in Jira.",
+  )
+  .option(
+    "--allow-empty",
+    "Permit a zero-issue result (required if the project is legitimately empty).",
+  )
+  .option(
+    "--full",
+    "Pull all issues, rather then an incremental update.",
+  )
+  .action((options) => {
+    const cli: PullOptions = {
+      site: options.site,
+      project: options.project,
+      out: options.out,
+      dryRun: options.dryRun ?? false,
+      prune: options.prune ?? true,
+      allowEmpty: options.allowEmpty ?? false,
+      full: options.full ?? false,
+      email: options.email,
+      token: options.token,
+    };
+    return runPull(cli);
+  });
 
 export async function runPull(cli: PullOptions): Promise<void> {
   const cwd = process.cwd();

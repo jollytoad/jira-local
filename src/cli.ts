@@ -13,10 +13,8 @@ import process from "node:process";
 
 import { Command } from "@cliffy/command";
 
-import { categorizeCommand } from "./commands/categorize.ts";
-import { initCommand } from "./commands/init.ts";
-import { pullCommand } from "./commands/pull.ts";
 import { failAll, setVerbose } from "./progress.ts";
+import { disableColour } from "./style.ts";
 import {
   ConfigError,
   JiraApiError,
@@ -40,9 +38,21 @@ async function main(): Promise<number> {
       "Log one timestamped line per step instead of updating task lines in place.",
       { global: true, action: () => setVerbose(true) },
     )
-    .command("pull", pullCommand())
-    .command("categorize", categorizeCommand())
-    .command("init", initCommand())
+    // Task lines only. Cliffy renders help before it fires other options'
+    // actions, so a flag cannot reach the help output; that follows NO_COLOR
+    // (checked by cliffy itself) and the TTY check in style.ts.
+    .option(
+      "--no-color",
+      "Disable colour in task lines.",
+      { global: true, action: () => disableColour() },
+    )
+    // Sub commands load on demand: a `pull` need not evaluate the prompt
+    // library `init` needs, and a `categorize` need not load the Jira client.
+    // Help and completions do load them all, since the descriptions they print
+    // live in the modules. Each command module default-exports its Command.
+    .command("pull", () => import("./commands/pull.ts"))
+    .command("categorize", () => import("./commands/categorize.ts"))
+    .command("init", () => import("./commands/init.ts"))
     .reset();
   try {
     await command.parse();

@@ -12,8 +12,7 @@
  * A terminal also gets colour (yellow spinner, green tick, red cross, muted dot
  * leader, bold tally — all at bright intensity; see style.ts). Piped output,
  * `--verbose`, and plain lines stay colour-free, so logs never carry escape
- * codes. The gate is FORCE_COLOR / TERM=dumb / TTY, with NO_COLOR handled by
- * @std/fmt.
+ * codes. The gate is NO_COLOR / --no-color / FORCE_COLOR / TERM=dumb / TTY.
  *
  * A call with no `task` is always a plain line: the per-file create/update
  * events that make up most of a pull's output are events, not lifecycle steps.

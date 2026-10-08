@@ -8,6 +8,9 @@
  *
  * The wrappers return the input unchanged when colour is off, so a stray call
  * can never leak escape bytes into piped output or a redirected file.
+ *
+ * Precedence: NO_COLOR (inside @std, which cannot be overridden) beats the
+ * explicit `--no-color`, which beats FORCE_COLOR / TERM=dumb / the TTY check.
  */
 import process from "node:process";
 import {
@@ -30,8 +33,23 @@ function colourWanted(): boolean {
   return process.stdout.isTTY === true;
 }
 
-// Applied once at import: every call site paints through these wrappers.
+// Applied at import, so the gate is settled before anything paints — including
+// cliffy's help output, which follows the same @std/fmt colour state. The CLI
+// calls `disableColour` once `--no-color` has been parsed.
 setColorEnabled(colourWanted());
+
+/**
+ * Honour an explicit `--no-color`, for the rest of the run. One-way by design:
+ * there is no `--color`, so the flag can only ever take colour away, which is why
+ * it needs no state of its own — `NO_COLOR` needs no handling either, since
+ * @std/fmt already leaves colour off and refuses to turn it back on.
+ *
+ * Cliffy's help output is out of reach of any flag: it renders before option
+ * actions fire. Help follows `NO_COLOR` and the TTY check instead.
+ */
+export function disableColour(): void {
+  setColorEnabled(false);
+}
 
 /**
  * Spinner frame while a task is in progress.
