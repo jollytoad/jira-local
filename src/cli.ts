@@ -5,6 +5,7 @@ import { Command } from "@cliffy/command";
 
 import { failAll, setVerbose } from "./progress.ts";
 import { disableColour } from "./style.ts";
+import { VERSION } from "./version.ts";
 import {
   ConfigError,
   JiraApiError,
@@ -16,6 +17,7 @@ import {
 async function main(): Promise<number> {
   const command = new Command()
     .name("jira-local")
+    .version(VERSION)
     .description(
       "Pull Jira issues into a flat folder of <KEY>.md files and generate\n" +
         "categorised index pages.",
@@ -39,6 +41,7 @@ async function main(): Promise<number> {
     .command("pull", () => import("./commands/pull.ts"))
     .command("categorize", () => import("./commands/categorize.ts"))
     .command("init", () => import("./commands/init.ts"))
+    .command("upgrade", () => import("./commands/upgrade.ts"))
     .reset();
   try {
     await command.parse();

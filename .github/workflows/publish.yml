@@ -28,6 +28,12 @@ jobs:
             exit 1
           fi
 
+      - name: Check generated version is committed
+        run: deno task version && git diff --exit-code src/version.ts
+
+      - name: Check installer syntax
+        run: sh -n install.sh
+
       - name: Verify formatting
         run: deno fmt --check
 

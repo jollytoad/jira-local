@@ -29,27 +29,33 @@ jobs:
             exit 1
           fi
 
+      - name: Refresh the generated version
+        run: deno task version && git diff --exit-code src/version.ts
+
       - name: Build targets
         run: |
           version=$(jq -r .version deno.json)
-          : > shas.txt
+          : > "jira-local-v$version-checksums.txt"
           for target in aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
             deno compile -P --app-name jira-local --output "jira-local-$target" --target "$target" src/cli.ts
             cp "jira-local-$target" jira-local
             tar -czf "jira-local-v$version-$target.tar.gz" jira-local
             rm jira-local
-            echo "$target $(sha256sum "jira-local-v$version-$target.tar.gz" | cut -d' ' -f1)" >> shas.txt
+            sha256sum "jira-local-v$version-$target.tar.gz" >> "jira-local-v$version-checksums.txt"
           done
 
       - name: Upload assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" jira-local-v*.tar.gz --clobber
+        run: |
+          version=$(jq -r .version deno.json)
+          gh release upload "${{ github.event.release.tag_name }}" \
+            jira-local-v*.tar.gz "jira-local-v$version-checksums.txt" --clobber
 
       - name: Generate formula
         run: |
           version=$(jq -r .version deno.json)
-          sha() { awk -v t="$1" '$1 == t { print $2 }' shas.txt; }
+          sha() { awk -v asset="jira-local-v$version-$1.tar.gz" '$2 == asset { print $1 }' "jira-local-v$version-checksums.txt"; }
           mkdir -p Formula
           cat > Formula/cli.rb <<EOF
           class Cli < Formula

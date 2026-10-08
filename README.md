@@ -58,11 +58,27 @@ url: "https://yoursite.atlassian.net/browse/EXAMPLE-123"
 
 ## Requirements
 
-- Either [Homebrew](https://brew.sh), or [Deno](https://deno.com) 2.x
 - A Jira Cloud account with an
   [API token](https://id.atlassian.com/manage-profile/security/api-tokens)
 
 ## Install
+
+### Install script
+
+Prebuilt binary, no Homebrew and no Deno. Downloads the release for your
+platform, verifies its checksum and drops it in `~/.local/bin`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/jollytoad/jira-local/main/install.sh | sh
+```
+
+Pass `--prefix <dir>` to install elsewhere (or set `JIRA_LOCAL_PREFIX`),
+`--version <ver>` to pin a release. If the directory isn't on your `PATH` the
+script tells you what to add. Later updates come from the binary itself:
+
+```sh
+jira-local upgrade
+```
 
 ### Homebrew
 
@@ -77,8 +93,15 @@ brew install jollytoad/jira-local/cli
 
 ### Deno
 
-Run straight from the published JSR package (or clone the repo and use the
-`deno task` entries):
+Install the CLI from the published JSR package to get the same `jira-local`
+command as the binary builds:
+
+```sh
+deno install --global jsr:@jollytoad/jira-local/cli
+```
+
+Or run it straight from the package without installing, granting permissions
+per-run:
 
 ```sh
 deno run jsr:@jollytoad/jira-local/cli init
@@ -86,34 +109,17 @@ deno run --allow-net --allow-read --allow-write --allow-env jsr:@jollytoad/jira-
 deno run jsr:@jollytoad/jira-local/cli categorize
 ```
 
-Permissions are still needed (network for `pull`, file access for
-`pull`/`categorize`), so grant them per-run as shown for `pull` above.
-
-### Standalone binary
-
-Releases also carry per-platform tarballs: download one, untar, and put the
-`jira-local` binary on your `PATH`. To build locally:
-
-```sh
-deno task compile        # ./jira-local for this platform
-./jira-local init
-./jira-local pull
-```
-
 ## Setup
 
 ```sh
-deno task jira-local init
+jira-local init
 ```
 
-`init` creates `.jira/.config.ts` (inside `.jira/`, next to the issues folder,
-never committed) and refuses to overwrite an existing one. It prompts for the
-site (a full URL, bare domain or site prefix, normalised to a base URL), the
-project key, and for email/token either a direct value or an env-var name
-(defaulting to `JIRA_EMAIL`/`JIRA_API_TOKEN`); skipped inputs keep the template
-defaults. Pass `--yes`/`-y` to skip the prompts (they also skip automatically
-when stdin is not a terminal), or prefill them with
-`--site`/`--project`/`--email`/`--token`.
+This creates `.jira/.config.ts` and refuses to overwrite an existing one.
+
+It prompts for the Jira site, the project key, and for email/token either a
+direct value or an env-var name. Pass `--yes`/`-y` to skip the prompts, or
+prefill them with `--site`/`--project`/`--email`/`--token` options.
 
 The generated config is a TypeScript module exporting a `config` object:
 
@@ -129,57 +135,29 @@ export const config: JiraLocalConfig = {
 };
 ```
 
-The tool itself never reads environment variables — the config is a TS module,
-so you opt into env access there. To feed those variables from a file, use a
-gitignored `.env` (plain `KEY=VALUE` lines) and run through the `deno task`
-entries, which pass `--env-file`; the compiled binary reads no `.env` at all.
-All connection settings can also be overridden per-run with
-`--site`/`--project`/`--email`/`--token`.
-
 ## Usage
 
 ```sh
-deno task jira-local pull             # incremental pull (first run is full)
-deno task jira-local pull --full      # full pull; also the only mode that prunes
-deno task jira-local categorize       # re-categorise only (offline; pull also does this)
-deno task jira-local init             # create .jira/.config.ts (see Setup)
-deno task ok                          # deno fmt && deno lint && deno check
+jira-local pull             # incremental pull (first run is full)
+jira-local pull --full      # full pull; also the only mode that prunes
+jira-local categorize       # re-categorise only (offline; pull also does this)
 ```
 
-### Options
+### Upgrading
 
-`pull` flags:
+A binary installed by the install script replaces itself in place:
 
-| Flag                  | Meaning                                                | Default                |
-| --------------------- | ------------------------------------------------------ | ---------------------- |
-| `--site <url>`        | Jira Cloud base URL                                    | `.config.ts` `site`    |
-| `--project <key>`     | Project key                                            | `.config.ts` `project` |
-| `--email` / `--token` | Override the config credentials                        | —                      |
-| `--dry-run`           | Decide but write nothing (state file untouched)        | —                      |
-| `--no-prune`          | Skip deleting files for issues deleted in Jira         | prune on               |
-| `--allow-empty`       | Accept a 0-issue result (genuinely empty project)      | off                    |
-| `--full`              | Ignore the watermark; pull everything; enables pruning | incremental            |
+```sh
+jira-local upgrade                     # latest release
+jira-local upgrade --version 0.1.1     # pin a version
+jira-local upgrade --list-versions     # what is available
+jira-local upgrade --force             # reinstall even if up to date
+```
 
-Global flags (accepted before or after the sub-command):
-
-| Flag         | Meaning                                                      | Default                     |
-| ------------ | ------------------------------------------------------------ | --------------------------- |
-| `--verbose`  | One timestamped line per step instead of in-place task lines | task lines on a terminal    |
-| `--no-color` | Disable colour in task lines                                 | colour when stdout is a tty |
-
-### Colour
-
-On a terminal the in-place task lines are coloured: yellow spinner while a task
-runs, green ✔ on success, red ✘ on failure, a muted dot leader and a bold tally.
-Piped output and `--verbose` are plain text with no escape codes at all.
-
-Colour is off when stdout is not a terminal, when `TERM=dumb`, when `NO_COLOR`
-is set, or when `--no-color` is passed; `FORCE_COLOR` turns it on regardless,
-which is what makes coloured help useful in a CI log. `NO_COLOR` wins over
-everything, including `--no-color`.
-
-`--no-color` reaches the task lines only — help is rendered before flags are
-parsed, so help follows `NO_COLOR` and the tty check instead.
+`jira-local --version` also reports when a newer release exists. The command
+only works for the compiled binary, since it replaces the running executable — a
+Deno or Homebrew install is upgraded by whatever installed it
+(`deno install --global`, `brew upgrade`).
 
 ### Files on disk
 
@@ -235,30 +213,43 @@ anything else aborts the run with a validation error before anything is written.
 
 ## Development
 
-| File                  | Role                                                                                               |
-| --------------------- | -------------------------------------------------------------------------------------------------- |
-| `cli.ts`              | Entry: builds/parses the cliffy Command, maps errors to exit codes                                 |
-| `commands/*.ts`       | One per subcommand — `pull`, `categorize`, `init` — each default-exporting its `Command`           |
-| `jira.ts`             | REST v3 client: search paging with lookahead, comments, retries/429 backoff, incremental JQL       |
-| `render.ts`           | Issue → markdown (front matter, description, comments)                                             |
-| `adf-to-markdown.ts`  | Atlassian Document Format → markdown                                                               |
-| `mirror.ts`           | The disk mirror: locate issue files, write one, prune deleted ones                                 |
-| `categorize.ts`       | The one `categorizeIssue` function: front matter + body → category strings                         |
-| `categories.ts`       | Reconciles categories into index pages next to `all/`, reading each issue's front matter from disk |
-| `category-indexes.ts` | Renders a category's index table                                                                   |
-| `config.ts`           | Loads/validates `.jira/.config.ts`, cached `getConfig`                                             |
-| `state.ts`            | Incremental watermark load/save                                                                    |
-| `progress.ts`         | Task lines on a tty, timestamped lines when piped or `--verbose`                                   |
-| `style.ts`            | Colour gate (NO_COLOR / FORCE_COLOR / TERM / TTY) and the palette                                  |
-| `errors.ts`           | Error types shared by the client and CLI                                                           |
-| `constants.ts`        | Front-matter field names, for config validation                                                    |
-| `types/`              | Types only, split by domain: `adf`, `jira-raw`, `jira-local`, `config`                             |
-| `util.ts`             | Small shared helpers (bounded-concurrency pool)                                                    |
+```sh
+deno task ok               # fmt + lint + typecheck + publish dry run — the only verification
+deno task compile          # self-contained binary at ./jira-local for this platform
+deno task jira-local <sub-command>   # the same CLI from source, with --env-file for a .env
+```
+
+The compiled binary is the release artefact: `deno task compile` cross-compiles
+to the four published targets with `--target`, and those tarballs are what
+`install.sh`, the Homebrew formula and `jira-local upgrade` all fetch.
+
+| File                     | Role                                                                                                |
+| ------------------------ | --------------------------------------------------------------------------------------------------- |
+| `cli.ts`                 | Entry: builds/parses the cliffy Command, maps errors to exit codes                                  |
+| `commands/*.ts`          | One per subcommand — `pull`, `categorize`, `init`, `upgrade` — each default-exporting its `Command` |
+| `jira.ts`                | REST v3 client: search paging with lookahead, comments, retries/429 backoff, incremental JQL        |
+| `render.ts`              | Issue → markdown (front matter, description, comments)                                              |
+| `adf-to-markdown.ts`     | Atlassian Document Format → markdown                                                                |
+| `mirror.ts`              | The disk mirror: locate issue files, write one, prune deleted ones                                  |
+| `categorize.ts`          | The one `categorizeIssue` function: front matter + body → category strings                          |
+| `categories.ts`          | Reconciles categories into index pages next to `all/`, reading each issue's front matter from disk  |
+| `category-indexes.ts`    | Renders a category's index table                                                                    |
+| `config.ts`              | Loads/validates `.jira/.config.ts`, cached `getConfig`                                              |
+| `state.ts`               | Incremental watermark load/save                                                                     |
+| `progress.ts`            | Task lines on a tty, timestamped lines when piped or `--verbose`                                    |
+| `style.ts`               | Colour gate (NO_COLOR / FORCE_COLOR / TERM / TTY) and the palette                                   |
+| `errors.ts`              | Error types shared by the client and CLI                                                            |
+| `constants.ts`           | Front-matter field names, for config validation                                                     |
+| `types/`                 | Types only, split by domain: `adf`, `jira-raw`, `jira-local`, `config`                              |
+| `util.ts`                | Small shared helpers (bounded-concurrency pool)                                                     |
+| `version.ts`             | The published version, generated from `deno.json` (never edited by hand)                            |
+| `install.sh`             | The `curl \| sh` installer for the release tarballs                                                 |
+| `tools/write-version.ts` | Regenerates `version.ts` from `deno.json` (the `deno task version` entry)                           |
 
 Runtime dependencies are pinned by [`deno.lock`](./deno.lock): `@cliffy/command`
-(the CLI), `@cliffy/prompt` (init's prompts), `@std/front-matter` (parsing issue
-front matter for categorisation), `@std/yaml` (rendering front matter) and
-`@std/fmt` (terminal colour).
+(the CLI), `@cliffy/prompt` (init's prompts), `@cliffy/upgrade` (the `upgrade`
+command), `@std/front-matter` (parsing issue front matter for categorisation),
+`@std/yaml` (rendering front matter) and `@std/fmt` (terminal colour).
 
 ## Troubleshooting
 

@@ -3,7 +3,8 @@
 ## Commands
 
 ```sh
-deno task ok                          # fmt + lint + typecheck — the only verification (no tests exist)
+deno task ok                          # sh -n installer + fmt + lint + typecheck + publish dry run (no tests exist)
+deno task version                     # regenerate src/version.ts from deno.json (CI fails a release that forgets)
 deno task jira-local init             # create .jira/.config.ts (--yes skips prompts; refuses if it exists)
 deno task jira-local pull             # incremental pull
 deno task jira-local pull --full      # full pull (also the only mode that prunes deletions)
@@ -41,34 +42,55 @@ edit could break by accident.
 - The tool reads no environment variables. The config is a TS module, so users
   opt into env access there (`token: process.env.JIRA_API_TOKEN`). The deno
   tasks pass `--env-file` for a gitignored `.env`; the compiled binary reads
-  none.
+  none. The single exception is `upgrade`, where cliffy's GithubProvider picks
+  up `GH_TOKEN`/`GITHUB_TOKEN` to lift GitHub's anonymous API rate limit.
 
 ## Release
 
-Deno 2.x, five runtime dependencies via `imports` in `deno.json`, pinned by
+Deno 2.x, six runtime dependencies via `imports` in `deno.json`, pinned by
 `deno.lock` (commit it). `init`'s generated config imports `JiraLocalConfig`
 from `jsr:@jollytoad/jira-local`, so the package has to stay published for that
 file to type-check.
 
+`src/version.ts` is generated from `deno.json` by `tools/write-version.ts`
+(`deno task version`, which `compile` and both workflows run), because Deno 2.x
+has no `--define` and JSR's `<pkg>/version` module does not resolve. It is
+committed, and `git diff --exit-code src/version.ts` is what stops a release
+that bumps `deno.json` without regenerating it.
+
 CI is two workflows in `.github/workflows/`, both triggered by a published
 release and both checking that the tag is `v` plus the `version` in `deno.json`:
 
-- `publish.yml` — fmt/lint/check, then `deno publish` to JSR.
-- `release.yml` — `deno compile -P` for four targets (`aarch64-apple-darwin`,
-  `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`,
+- `publish.yml` — version drift, `sh -n install.sh`, fmt/lint/check, then
+  `deno publish` to JSR.
+- `release.yml` — version drift, then `deno compile -P` for four targets
+  (`aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`,
   `aarch64-unknown-linux-gnu`, permissions from `compile.permissions`), uploads
-  each as `jira-local-v<version>-<target>.tar.gz`, then regenerates
-  `Formula/cli.rb` with the new version and SHA256s and commits it to `main` as
-  `github-actions[bot]`. That bot push needs the tag to point at current `main`.
+  each as `jira-local-v<version>-<target>.tar.gz` plus a
+  `jira-local-v<version>-checksums.txt` for `install.sh` and `upgrade` to
+  verify, then regenerates `Formula/cli.rb` from that same checksums file and
+  commits it to `main` as `github-actions[bot]`. That bot push needs the tag to
+  point at current `main`.
 
-To release: bump `version` in `deno.json`, then create a GitHub release tagged
-`v<version>`.
+To release: bump `version` in `deno.json`, run `deno task version`, then create
+a GitHub release tagged `v<version>`.
 
 ## Gotchas
 
 - Cliffy lazy commands: register with `.command("pull", () => import("…"))` and
   have each command module **default-export its `Command`**. A module exporting
   only a factory fails to type-check next to a `no-` prefixed global option.
+- `upgrade` is cliffy's `UpgradeCommand`, so it owns its own flags: its `-v` is
+  cliffy's verbose logging, not ours, and it calls `.noGlobals()` — so
+  `jira-local --verbose upgrade` works (ours, handled by the parent) while
+  `jira-local upgrade --verbose` is cliffy's. Releases are tagged `v<version>`
+  but the cli reports the bare version, which is what `ReleaseProvider` in
+  `commands/upgrade.ts` bridges in both directions. Its spinner is off because
+  cliffy's ignores the colour gate in `style.ts`.
+- `upgrade` replaces the running executable, so cliffy's `isStandalone()` is the
+  only thing keeping a script install from overwriting the `deno` binary; the
+  provider's `upgrade()` override turns that case into a message instead of
+  letting cliffy shell out to the runtime.
 - Cliffy renders help _before_ option actions fire, so `--no-color` can never
   reach it — help follows `NO_COLOR` and the tty check. Task-line precedence is
   `NO_COLOR` (enforced inside `@std/fmt`, which refuses to re-enable) >
@@ -79,15 +101,20 @@ To release: bump `version` in `deno.json`, then create a GitHub release tagged
 
 ## Layout
 
-`src/cli.ts` builds the cliffy `Command` (`jira-local` with `pull`, `categorize`
-and `init`), parses it and maps runtime errors to exit codes. Pipeline:
-`jira.ts` (REST v3, streaming pages with lookahead) → `adf-to-markdown.ts` →
-`render.ts` → `mirror.ts` (write issues to disk) → `commands/`; watermark in
-`state.ts`, config in `config.ts`, progress in `progress.ts` + `style.ts`,
-errors in `errors.ts`.
+`src/cli.ts` builds the cliffy `Command` (`jira-local` with `pull`,
+`categorize`, `init` and `upgrade`), parses it and maps runtime errors to exit
+codes. Pipeline: `jira.ts` (REST v3, streaming pages with lookahead) →
+`adf-to-markdown.ts` → `render.ts` → `mirror.ts` (write issues to disk) →
+`commands/`; watermark in `state.ts`, config in `config.ts`, progress in
+`progress.ts` + `style.ts`, errors in `errors.ts`.
 
 - Each command lives in `src/commands/<name>.ts` with its orchestration
   (`runPull`/`runCategorize`) beside the definition.
+- `install.sh` is the only shell in the repo: POSIX `sh`, no bashisms, `curl` +
+  `tar` + a sha256 tool only. It resolves "latest" by following the
+  `releases/latest` redirect rather than the GitHub api, so it needs no token
+  and cannot hit the anonymous rate limit. `sh -n install.sh` is part of
+  `deno task ok`.
 - Disk is the only source of truth for categorisation. `mirror.ts` keeps just a
   SHA-256 per issue file (never the content) to detect changes, and
   `categories.ts` reads each issue's front matter itself, so an index page can
