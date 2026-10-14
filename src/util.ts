@@ -8,10 +8,17 @@ export function displayName(
   return "";
 }
 
-export function isoDate(value: string | undefined): string {
-  if (!value) return "";
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+/**
+ * Jira's timestamp, kept exactly as sent.
+ *
+ * The value is never widened or narrowed, so a field Jira reports as a bare
+ * date stays a bare date and one it reports to the millisecond keeps it. That
+ * matters for push, which compares `updated` against the value it is about to
+ * write: a date is enough to read but not to compare, because two syncs on the
+ * same day would be the same string.
+ */
+export function jiraTimestamp(value: string | undefined): string {
+  return value?.trim() ?? "";
 }
 
 /** Bounded concurrency, results in input order. */

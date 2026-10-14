@@ -3,12 +3,15 @@
 ## Commands
 
 ```sh
-deno task ok                          # sh -n installer + fmt + lint + typecheck + publish dry run (no tests exist)
+deno task ok                          # sh -n installer + fmt + lint + typecheck + src/tools checks + publish dry run
 deno task version                     # regenerate src/version.ts from deno.json (CI fails a release that forgets)
 deno task jira-local init             # create .jira/.config.ts (--yes skips prompts; refuses if it exists)
 deno task jira-local pull             # incremental pull
 deno task jira-local pull --full      # full pull (also the only mode that prunes deletions)
 deno task jira-local pull --dry-run   # decide but write nothing
+deno task jira-local status           # report local edits, conflicts, missing bases (offline)
+deno task jira-local push --dry-run   # report what would go to Jira, write nothing
+deno task jira-local push             # send local edits back to Jira
 deno task jira-local categorize       # re-categorise only (offline; pull also does this)
 deno task compile                     # self-contained binary (--target to cross-compile)
 ```
@@ -25,12 +28,17 @@ edit could break by accident.
 ## Constraints
 
 - Cross-runtime only: no `Deno.*` globals, use the `node:` builtins
-  (`node:fs/promises`, `node:path`, `node:process`, `node:url`) already used
-  throughout, so a non-Deno runtime stays an option later. Hard filter on
-  dependencies too — reject anything that unconditionally reaches for `Deno.*`
-  internals, and implement small things here rather than adding a dependency for
-  them. (`@std/fmt` is the known exception: it reads `globalThis.Deno?.noColor`
-  opportunistically, so it degrades to plain output off-Deno.)
+  (`node:fs/promises`, `node:path`, `node:process`, `node:url`,
+  `node:child_process`) already used throughout, so a non-Deno runtime stays an
+  option later. Hard filter on dependencies too — reject anything that
+  unconditionally reaches for `Deno.*` internals, and implement small things
+  here rather than adding a dependency for them. (`@std/fmt` is the known
+  exception: it reads `globalThis.Deno?.noColor` opportunistically, so it
+  degrades to plain output off-Deno.)
+- `--allow-run` is unscoped, because the only subprocess is `git merge-file` and
+  a scoped `--allow-run=git` makes the CLI refuse to start at all when git is
+  absent — taking `categorize`, which needs no git, down with it. The merge
+  reports the missing binary itself instead.
 - `src/types/` holds types only (interfaces/type aliases), never runtime values;
   constants live in `src/constants.ts`. Split by domain: `adf.ts` (ADF
   documents), `jira-raw.ts` (raw REST payloads and credentials), `jira-local.ts`
@@ -48,9 +56,10 @@ edit could break by accident.
 ## Release
 
 Deno 2.x, six runtime dependencies via `imports` in `deno.json`, pinned by
-`deno.lock` (commit it). `init`'s generated config imports `JiraLocalConfig`
-from `jsr:@jollytoad/jira-local`, so the package has to stay published for that
-file to type-check.
+`deno.lock` (commit it). `git` must be on `PATH` for the merge (the tool says so
+plainly if it is not). `init`'s generated config imports `JiraLocalConfig` from
+`jsr:@jollytoad/jira-local`, so the package has to stay published for that file
+to type-check.
 
 `src/version.ts` is generated from `deno.json` by `tools/write-version.ts`
 (`deno task version`, which `compile` and both workflows run), because Deno 2.x
@@ -98,27 +107,49 @@ a GitHub release tagged `v<version>`.
   cliffy 1.3 reads the same `@std/fmt/colors` state.
 - Option actions fire _during_ the parse, which is the only way `--verbose`
   reaches `progress()` before the subcommand's own action runs.
+- Never hard link a base file to an issue file. An editor that writes in place
+  rewrites the merge base, so the next merge loses its ancestor and returns
+  wrong results with no error. `base.ts` clones with `COPYFILE_FICLONE` instead,
+  which shares blocks and never shares an inode.
+- Cliffy argument definitions are split on spaces, so `.arguments()` takes the
+  bare `[keys...:string]` and the description goes in a separate `.example()`
+  call. Passing `"[keys...:string] Issue keys to push."` throws while parsing
+  its own help.
 
 ## Layout
 
-`src/cli.ts` builds the cliffy `Command` (`jira-local` with `pull`,
-`categorize`, `init` and `upgrade`), parses it and maps runtime errors to exit
-codes. Pipeline: `jira.ts` (REST v3, streaming pages with lookahead) →
-`adf-to-markdown.ts` → `render.ts` → `mirror.ts` (write issues to disk) →
-`commands/`; watermark in `state.ts`, config in `config.ts`, progress in
-`progress.ts` + `style.ts`, errors in `errors.ts`.
+`src/cli.ts` builds the cliffy `Command` (`jira-local` with `pull`, `push`,
+`status`, `categorize`, `init` and `upgrade`), parses it and maps runtime errors
+to exit codes. Pull pipeline: `jira.ts` (REST v3, streaming pages with
+lookahead) → `adf-to-markdown.ts` → `render.ts` → `merge.ts` → `mirror.ts`
+(write issues to disk) → `commands/`. Push runs the other way:
+`commands/push.ts` → `issue-file.ts` → `push-plan.ts` → `markdown-to-adf.ts` →
+`jira.ts`. Watermark in `state.ts`, merge base in `base.ts`, config in
+`config.ts`, progress in `progress.ts` + `style.ts`, errors in `errors.ts`.
 
 - Each command lives in `src/commands/<name>.ts` with its orchestration
-  (`runPull`/`runCategorize`) beside the definition.
+  (`runPull`/`runPush`/`runCategorize`) beside the definition.
+- `src/tools/` holds development aids, not tests: `merge-check.ts` drives the
+  merge engine through its cases plus a real file, `pull-e2e.ts` drives the
+  whole write path over a scratch project, `push-e2e.ts` drives `runPush`
+  against a fake Jira over real HTTP, and `md-roundtrip.ts` checks the markdown
+  subset against every description in the mirror. All four run as part of
+  `deno task ok`. Only `push-e2e.ts` exercises response parsing, so a change to
+  the shape of a Jira reply needs that one rerun. `md-roundtrip` reports
+  refusals as counts rather than failures, because a construct outside the
+  subset is the designed outcome; it checks that no _text_ is lost, not that the
+  tree is identical, because `adf-to-markdown.ts` normalises whitespace and
+  merges paragraphs in a list item.
 - `install.sh` is the only shell in the repo: POSIX `sh`, no bashisms, `curl` +
   `tar` + a sha256 tool only. It resolves "latest" by following the
   `releases/latest` redirect rather than the GitHub api, so it needs no token
   and cannot hit the anonymous rate limit. `sh -n install.sh` is part of
   `deno task ok`.
 - Disk is the only source of truth for categorisation. `mirror.ts` keeps just a
-  SHA-256 per issue file (never the content) to detect changes, and
-  `categories.ts` reads each issue's front matter itself, so an index page can
-  never be built from a pre-pull snapshot.
+  SHA-256 per issue file to detect changes, `base.ts` holds the last synced
+  _content_ per issue as the merge base, and `categories.ts` reads each issue's
+  front matter itself, so an index page can never be built from a pre-pull
+  snapshot.
 - `configPath()`, `statePath()` and `getConfig()` take no directory: everything
   is anchored to `process.cwd()` plus `JIRA_DIR`. `getConfig()` stays cached per
   path.
@@ -147,8 +178,45 @@ codes. Pipeline: `jira.ts` (REST v3, streaming pages with lookahead) →
   entirely — the pages cannot have changed.
 - `.jira/` is gitignored generated output and safe to delete; deleting
   `.jira/.state.json` forces a full pull.
-- The mirror is one-way (Jira → disk): local edits to `.jira/issues/all/*.md`
-  are overwritten on the next pull, and nothing is ever written to Jira. Pruning
+- Write-back: `.jira/.base/<KEY>.md` is the merge base (the last version Jira
+  held, never the merged result — otherwise every later Jira change conflicts
+  with itself). The base is created by reflink and every issue file and base is
+  written temp-then-`rename`, because the temp must be a sibling to make
+  `rename` atomic. `merge.ts` shells out to
+  `git merge-file --diff3 -p -L local -L base -L jira`, so a conflict is the
+  shape every merge tool and agent already reads; five fast paths in
+  `mergeIssueFile` mean only a genuine three-way case reaches the subprocess.
+  `pull --no-merge` restores the old overwrite behaviour.
+- Timestamps are stored exactly as Jira sends them, via `jiraTimestamp()`. Never
+  widen or narrow one: a field Jira reports as a bare date stays a bare date,
+  and one it reports to the millisecond keeps it. `created`, `updated` and each
+  comment heading all go through it. This is what makes push's lease check
+  possible — it compares `updated` against the value it is about to write, and a
+  date cannot tell two syncs on the same day apart. `util.ts` has no
+  date-truncating helper for this reason; do not add one back.
+- The push lease is the base file's own `updated` front matter. There is no
+  separate lease file, so the sync state a reader sees in the file is the state
+  the check uses, and deleting anything cannot silently disable the check.
+- Push reads only what changed against the base, so an untouched description
+  never reaches the lossy `markdown-to-adf.ts`; that module throws naming the
+  construct rather than degrade a Jira issue, and refuses tables, images,
+  attachments and raw HTML outright. Comments are read-only except for text
+  appended below the last one, which posts as one new comment. `assignee` and
+  `linked` are read-only because the render drops what writing them needs.
+  Writable fields are `summary`, `labels`, `priority`, `parent`, `status`,
+  `type`, `children` and the description. The lease check refuses an issue whose
+  `updated` moved since the base was taken. `push --dry-run` performs every read
+  and conversion, writes nothing, and exits 1 if any issue would be refused.
+- Two fields reach the API as an id rather than the name in the file, because
+  the name is not unique enough: `children`, because `update.subtasks` is keyed
+  by numeric id, and `type`, because a type name is only unique within a
+  project. `push-plan.ts` records the name and leaves resolution to the command,
+  which is where the I/O lives. `type` resolves against `GET /project/{key}` and
+  its `issueTypes`, fetched once per push because the answer is the same for
+  every issue. Neither is guessed at: a name that does not resolve refuses that
+  issue and lists what is available.
+- The mirror is two-way but only on demand: pull merges Jira into disk, push
+  sends local edits back, and nothing reaches Jira without a `push`. Pruning
   happens only on `--full`, since an incremental run cannot know what it didn't
   fetch.
 - Incremental pull keys off Jira's `updated` timestamps (account timezone), not

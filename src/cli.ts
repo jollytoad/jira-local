@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-net --allow-read --allow-write --allow-env
+#!/usr/bin/env -S deno run --allow-net --allow-read --allow-write --allow-env --allow-run
 import process from "node:process";
 
 import { Command } from "@cliffy/command";
@@ -19,8 +19,9 @@ async function main(): Promise<number> {
     .name("jira-local")
     .version(VERSION)
     .description(
-      "Pull Jira issues into a flat folder of <KEY>.md files and generate\n" +
-        "categorised index pages.",
+      "Mirror Jira issues into a flat folder of <KEY>.md files, merged rather\n" +
+        "than overwritten, with categorised index pages. Local edits go back\n" +
+        "to Jira with push, and nothing reaches Jira without one.",
     )
     // Option actions fire during the parse, before the subcommand's action
     // runs, which is what progress() needs to see the right mode.
@@ -39,6 +40,8 @@ async function main(): Promise<number> {
     // Lazy so a pull never loads the prompt library, or vice versa. Help
     // loads them all: their descriptions live in the modules.
     .command("pull", () => import("./commands/pull.ts"))
+    .command("push", () => import("./commands/push.ts"))
+    .command("status", () => import("./commands/status.ts"))
     .command("categorize", () => import("./commands/categorize.ts"))
     .command("init", () => import("./commands/init.ts"))
     .command("upgrade", () => import("./commands/upgrade.ts"))
@@ -55,7 +58,7 @@ async function main(): Promise<number> {
       console.error(
         `error: ${error.message}\n` +
           "Run with the required permissions, e.g.:\n" +
-          "  deno run --allow-net --allow-read --allow-write --allow-env jsr:@jollytoad/jira-local/cli",
+          "  deno run --allow-net --allow-read --allow-write --allow-env --allow-run jsr:@jollytoad/jira-local/cli",
       );
       return 1;
     }

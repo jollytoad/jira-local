@@ -18,7 +18,7 @@ import { ISSUES_DIR } from "../constants.ts";
 import type { Credentials } from "../types/jira-raw.ts";
 import type { PullState } from "../types/jira-local.ts";
 import type { JiraLocalConfig } from "../types/config.ts";
-import { elapsed } from "../util.ts";
+import { elapsed, pluralise } from "../util.ts";
 import { progress } from "../progress.ts";
 
 export interface PullOptions {
@@ -28,13 +28,15 @@ export interface PullOptions {
   prune: boolean;
   allowEmpty: boolean;
   full: boolean;
+  merge: boolean;
   email?: string;
   token?: string;
 }
 
 export default new Command()
   .description(
-    "Pull Jira issues into a flat folder of <KEY>.md files and generate\n" +
+    "Pull Jira issues into a flat folder of <KEY>.md files, three-way merged\n" +
+      "against the last synced version so local edits survive, and generate\n" +
       "categorised index pages.",
   )
   .option(
@@ -51,6 +53,10 @@ export default new Command()
     "Atlassian API token.",
   )
   .option("--dry-run", "Print the plan without writing anything.")
+  .option(
+    "--no-merge",
+    "Overwrite local edits instead of merging them against the stored base.",
+  )
   .option(
     "--no-prune",
     "Do not delete files for issues no longer present in Jira.",
@@ -71,6 +77,7 @@ export default new Command()
       prune: options.prune ?? true,
       allowEmpty: options.allowEmpty ?? false,
       full: options.full ?? false,
+      merge: options.merge ?? true,
       email: options.email,
       token: options.token,
     };
@@ -149,6 +156,7 @@ export async function runPull(cli: PullOptions): Promise<void> {
   const seenKeys = new Set<string>();
   let issueCount = 0;
   let written = 0;
+  const conflictKeys: string[] = [];
   // Promoted into the state file only once the whole stream finishes cleanly.
   let maxUpdated: string | undefined = previous?.maxUpdated;
 
@@ -168,9 +176,12 @@ export async function runPull(cli: PullOptions): Promise<void> {
     seenKeys.add(pulled.key);
     issueCount++;
     progress({ task: "render", msg: `issue rendered (${issue.key})`, inc: 1 });
-    if (await pullIssue(pulled, local, outDir, cli.dryRun) !== "unchanged") {
-      written++;
-    }
+    const action = await pullIssue(pulled, local, outDir, {
+      merge: cli.merge,
+      dryRun: cli.dryRun,
+    });
+    if (action === "conflict") conflictKeys.push(pulled.key);
+    if (action !== "unchanged") written++;
   }
 
   progress({ task: "render", msg: "issues rendered", status: "ok" });
@@ -208,6 +219,11 @@ export async function runPull(cli: PullOptions): Promise<void> {
   progress({ task: "issue-create", msg: "issues created", status: "stop" });
   progress({ task: "issue-update", msg: "issues updated", status: "stop" });
   progress({ task: "issue-delete", msg: "issues deleted", status: "stop" });
+  progress({
+    task: "issue-conflict",
+    msg: "issues conflicted",
+    status: "stop",
+  });
 
   const next: PullState = {
     maxUpdated: truncateToMinute(maxUpdated ?? previous?.maxUpdated ?? ""),
@@ -226,6 +242,22 @@ export async function runPull(cli: PullOptions): Promise<void> {
       incremental ? ` since ${updatedSince}` : ""
     }${cli.dryRun ? " — dry run: no changes written" : ""}.`,
   );
+  if (conflictKeys.length > 0) {
+    console.log(
+      `${pluralise(conflictKeys.length, "issue", "issues")} conflicted and ` +
+        "kept conflict markers on disk: " +
+        summariseKeys(conflictKeys) +
+        ". Resolve the file, then run push to send it.",
+    );
+  }
+}
+
+/** At most a screenful, then a count of the rest. */
+function summariseKeys(keys: readonly string[]): string {
+  const shown = keys.slice(0, 10);
+  return shown.length === keys.length
+    ? shown.join(", ")
+    : `${shown.join(", ")} and ${keys.length - shown.length} more`;
 }
 
 /** Flags beat the config file; blank values count as unset. */

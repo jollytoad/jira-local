@@ -18,6 +18,7 @@ import {
 import { getConfig, isFrontMatterKey } from "./config.ts";
 import { categorizeIssue } from "./categorize.ts";
 import { listIssueFiles } from "./mirror.ts";
+import { hasConflictMarkers } from "./merge.ts";
 import { FRONT_MATTER_KEYS } from "./constants.ts";
 import type {
   FrontMatterKey,
@@ -122,7 +123,12 @@ async function buildDesired(
     { rows: IndexRow[]; columns: readonly IndexColumn[] }
   >();
   for (const file of await listIssueFiles(allDir, projectKey)) {
-    const frontMatter = await readFrontMatter(file.absPath);
+    const content = await readText(file.absPath);
+    // A conflicted file's front matter is half one version and half another, so
+    // it could file the issue under a status nobody set and point the key
+    // column at a file with markers in it.
+    if (content === undefined || hasConflictMarkers(content)) continue;
+    const frontMatter = parseFrontMatter(content);
     for (const raw of categorizeIssue({ frontMatter, body: "" })) {
       const segments = sanitizeCategoryPath(raw);
       if (segments.length === 0) continue;
@@ -159,18 +165,20 @@ function indexOfCategory(
 }
 
 /** Bad front matter degrades to defaults so categorisation never crashes. */
-async function readFrontMatter(absPath: string): Promise<IssueFrontMatter> {
-  let content: string;
-  try {
-    content = await readFile(absPath, "utf8");
-  } catch {
-    return coerceFrontMatter({});
-  }
+function parseFrontMatter(content: string): IssueFrontMatter {
   try {
     if (!test(content)) return coerceFrontMatter({});
     return coerceFrontMatter(extract<Record<string, unknown>>(content).attrs);
   } catch {
     return coerceFrontMatter({});
+  }
+}
+
+async function readText(absPath: string): Promise<string | undefined> {
+  try {
+    return await readFile(absPath, "utf8");
+  } catch {
+    return undefined;
   }
 }
 

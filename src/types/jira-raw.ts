@@ -32,6 +32,13 @@ export interface JiraIssueRef {
   } | null;
 }
 
+/** An issue type the project offers, by id. */
+export interface JiraIssueType {
+  id: string;
+  name: string;
+  subtask: boolean;
+}
+
 /** Direction and link type are unimportant to this tool. */
 export interface JiraIssueLink {
   type?: { name?: string; inward?: string; outward?: string } | null;

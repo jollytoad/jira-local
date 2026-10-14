@@ -6,7 +6,7 @@ import type {
   PulledIssue,
 } from "./types/jira-local.ts";
 import type { JiraIssue, JiraIssueRef } from "./types/jira-raw.ts";
-import { displayName, isoDate } from "./util.ts";
+import { displayName, jiraTimestamp } from "./util.ts";
 
 export function jiraIssueToContent(
   issue: JiraIssue,
@@ -34,8 +34,8 @@ export function jiraIssueToContent(
         link.inwardIssue ?? link.outwardIssue
       ),
     ),
-    created: isoDate(fields.created),
-    updated: isoDate(fields.updated),
+    created: jiraTimestamp(fields.created),
+    updated: jiraTimestamp(fields.updated),
     url: `${siteUrl}/browse/${issue.key}`,
   };
 
@@ -49,7 +49,7 @@ export function jiraIssueToContent(
         : adfToMarkdown(rawBody);
       if (!body) return "";
       const author = displayName(comment.author) || "Unknown";
-      const date = isoDate(comment.created);
+      const date = jiraTimestamp(comment.created);
       const heading = `### Comment ${index + 1} — ${author}${
         date ? ` (${date})` : ""
       }`;

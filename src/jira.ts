@@ -6,7 +6,12 @@ import {
   RateLimitError,
 } from "./errors.ts";
 import type { AdfNode } from "./types/adf.ts";
-import type { Credentials, JiraComment, JiraIssue } from "./types/jira-raw.ts";
+import type {
+  Credentials,
+  JiraComment,
+  JiraIssue,
+  JiraIssueType,
+} from "./types/jira-raw.ts";
 import { pool } from "./util.ts";
 import { progress } from "./progress.ts";
 
@@ -256,16 +261,143 @@ async function fetchAllComments(
   return comments;
 }
 
+export interface JiraUpdate {
+  fields?: Record<string, unknown>;
+  update?: Record<string, unknown>;
+}
+
+/** `PUT /issue/{key}`, answered with 204 No Content. */
+export async function updateIssue(
+  creds: Credentials,
+  key: string,
+  payload: JiraUpdate,
+): Promise<void> {
+  await request(creds, "PUT", `/rest/api/3/issue/${encodeURIComponent(key)}`, {
+    body: payload,
+  });
+}
+
+export interface JiraTransition {
+  id: string;
+  name: string;
+  to?: { name?: string };
+}
+
+/**
+ * Transitions are the only way to change a status, so the caller needs the
+ * full list to resolve a target name.
+ */
+export async function fetchTransitions(
+  creds: Credentials,
+  key: string,
+): Promise<JiraTransition[]> {
+  const result = await requestJson<{
+    transitions?: Array<{ id?: string; name?: string; to?: { name?: string } }>;
+  }>(creds, "GET", `/rest/api/3/issue/${encodeURIComponent(key)}/transitions`);
+  return (result.transitions ?? [])
+    .filter((t): t is { id: string; name: string; to?: { name?: string } } =>
+      typeof t.id === "string" && typeof t.name === "string"
+    )
+    .map((t) => ({ id: t.id, name: t.name, to: t.to }));
+}
+
+export async function transitionIssue(
+  creds: Credentials,
+  key: string,
+  transitionId: string,
+): Promise<void> {
+  await request(
+    creds,
+    "POST",
+    `/rest/api/3/issue/${encodeURIComponent(key)}/transitions`,
+    { body: { transition: { id: transitionId } } },
+  );
+}
+
+/**
+ * The push lease: the issue's exact `updated` and its numeric id, which
+ * subtask operations need because they are keyed by id rather than key.
+ *
+ * `updated` arrives under `fields`, so it is unwrapped here rather than at
+ * every call site.
+ */
+export async function fetchIssueStamp(
+  creds: Credentials,
+  key: string,
+): Promise<{ updated?: string; id?: string }> {
+  const issue = await requestJson<
+    { id?: string; fields?: { updated?: string } }
+  >(
+    creds,
+    "GET",
+    `/rest/api/3/issue/${encodeURIComponent(key)}`,
+    { query: new URLSearchParams({ fields: "updated" }) },
+  );
+  return { updated: issue.fields?.updated, id: issue.id };
+}
+
+/**
+ * The issue types a project offers, with the ids the write path needs. A name
+ * alone is not enough, because a type name is only unique within a project.
+ * The answer is the same for every issue in a push, so callers fetch it once.
+ */
+export async function fetchIssueTypes(
+  creds: Credentials,
+  project: string,
+): Promise<JiraIssueType[]> {
+  const result = await requestJson<{
+    issueTypes?: Array<{ id?: string; name?: string; subtask?: boolean }>;
+  }>(creds, "GET", `/rest/api/3/project/${encodeURIComponent(project)}`);
+  return (result.issueTypes ?? [])
+    .filter((t): t is { id: string; name: string; subtask?: boolean } =>
+      typeof t.id === "string" && typeof t.name === "string"
+    )
+    .map((t) => ({ id: t.id, name: t.name, subtask: t.subtask === true }));
+}
+
+/** One whole issue with its comments, for re-rendering after a write. */
+export async function fetchIssue(
+  creds: Credentials,
+  key: string,
+): Promise<JiraIssue> {
+  const issue = await requestJson<JiraIssue>(
+    creds,
+    "GET",
+    `/rest/api/3/issue/${encodeURIComponent(key)}`,
+    { query: new URLSearchParams({ fields: ISSUE_FIELDS.join(",") }) },
+  );
+  if (!hasAllComments(issue)) {
+    const comments = await fetchAllComments(creds, key);
+    issue.fields.comment = { total: comments.length, comments };
+  }
+  return issue;
+}
+
 async function requestJson<T>(
   creds: Credentials,
-  method: "GET" | "POST",
+  method: HttpMethod,
   path: string,
   opts: { query?: URLSearchParams; body?: unknown } = {},
 ): Promise<T> {
+  return (await request(creds, method, path, opts)) as T;
+}
+
+type HttpMethod = "GET" | "POST" | "PUT";
+
+/**
+ * A successful write answers 204 with no body, so the body is only parsed when
+ * there is one. `requestJson` callers all expect JSON and all get it.
+ */
+async function request(
+  creds: Credentials,
+  method: HttpMethod,
+  path: string,
+  opts: { query?: URLSearchParams; body?: unknown } = {},
+): Promise<unknown> {
   const url = `${creds.site}${path}${opts.query ? `?${opts.query}` : ""}`;
-  const payload = method === "POST"
-    ? JSON.stringify(opts.body ?? {})
-    : undefined;
+  const payload = method === "GET"
+    ? undefined
+    : JSON.stringify(opts.body ?? {});
   const auth = `Basic ${btoa(`${creds.email}:${creds.token}`)}`;
   let lastError: Error | undefined;
 
@@ -313,7 +445,9 @@ async function requestJson<T>(
       const text = await response.text().catch(() => "");
       throw new JiraApiError(response.status, url, text);
     }
-    return (await response.json()) as T;
+    if (response.status === 204) return undefined;
+    const text = await response.text();
+    return text === "" ? undefined : JSON.parse(text);
   }
   throw lastError ?? new Error(`Request to ${url} failed`);
 }
