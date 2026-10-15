@@ -71,6 +71,8 @@ function validate(
   const project = stringField(raw, "project", label);
   const email = stringField(raw, "email", label);
   const token = stringField(raw, "token", label);
+  const defaultIssueType = stringField(raw, "defaultIssueType", label);
+  const newIssueLinkType = stringField(raw, "newIssueLinkType", label);
 
   let categoryIndex:
     | Partial<Record<FrontMatterKey, readonly IndexColumn[]>>
@@ -108,7 +110,15 @@ function validate(
     categoryIndex = entries;
   }
 
-  return { site, project, email, token, categoryIndex };
+  return {
+    site,
+    project,
+    email,
+    token,
+    defaultIssueType,
+    newIssueLinkType,
+    categoryIndex,
+  };
 }
 
 function stringField(

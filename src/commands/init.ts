@@ -246,6 +246,10 @@ export const config: JiraLocalConfig = {
     parent: ["type", "key", "summary", "status"],
     status: ["type", "key", "summary"],
   },
+
+  // Declaring new issues as top-level headings (both optional):
+  // defaultIssueType: "Task",
+  // newIssueLinkType: "Relates To",
 };
 `;
 }

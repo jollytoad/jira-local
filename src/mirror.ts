@@ -23,6 +23,15 @@ import { progress } from "./progress.ts";
 
 const ISSUE_FILE_PATTERN = /^([A-Za-z][A-Za-z0-9]*-\d+)\.md$/;
 
+/**
+ * The issue a mirrored file stands for, or undefined when the name is not
+ * issue-key shaped. A loose file beside the mirrored ones is a declaration, so
+ * this is also what tells the two apart.
+ */
+export function issueKeyFromFileName(name: string): string | undefined {
+  return ISSUE_FILE_PATTERN.exec(name)?.[1];
+}
+
 export type PullAction = "create" | "update" | "unchanged" | "conflict";
 
 export interface WriteIssueOptions {
@@ -49,7 +58,7 @@ export async function listIssueFiles(
   const refs: IssueFileRef[] = [];
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
-    const key = ISSUE_FILE_PATTERN.exec(entry.name)?.[1];
+    const key = issueKeyFromFileName(entry.name);
     if (!key || !key.toLowerCase().startsWith(prefix)) continue;
     const absPath = join(outDir, entry.name);
     refs.push({ key, absPath, relPath: relative(outDir, absPath) });

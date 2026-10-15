@@ -10,7 +10,11 @@
 
 import { markdownToAdf, MarkdownUnsupportedError } from "./markdown-to-adf.ts";
 import type { AdfNode } from "./types/adf.ts";
-import { appendedComment, truncateComments } from "./issue-file.ts";
+import {
+  appendedComment,
+  titleSummary,
+  truncateComments,
+} from "./issue-file.ts";
 import type { ParsedIssue } from "./issue-file.ts";
 import type { JiraUpdate } from "./jira.ts";
 
@@ -70,9 +74,17 @@ export function planPush(
   const payload: Record<string, unknown> = {};
   const subtasks: Record<string, unknown>[] = [];
 
-  if (local.summary !== base.summary) {
-    fields.push({ field: "summary", from: base.summary, to: local.summary });
-    payload["summary"] = local.summary;
+  const resolved = resolveSummary(base, local, key);
+  if (resolved.refusal !== undefined) {
+    return { key, update: {}, fields: [], warnings, refusal: resolved.refusal };
+  }
+  if (resolved.summary !== undefined) {
+    fields.push({
+      field: "summary",
+      from: base.summary,
+      to: resolved.summary,
+    });
+    payload["summary"] = resolved.summary;
   }
   if (!sameList(local.labels, base.labels)) {
     fields.push({
@@ -89,8 +101,21 @@ export function planPush(
       : { name: local.priority };
   }
   if (local.parent !== base.parent) {
+    if (local.parent === "") {
+      // Jira reports `operations: ["set"]` for parent and no `remove`, so a
+      // blanked field can only ever earn an error nobody can satisfy.
+      return {
+        key,
+        update: {},
+        fields: [],
+        warnings,
+        refusal:
+          "a parent cannot be cleared — Jira has no way to remove one through the API; " +
+          "put another parent in the field, or leave it as it is",
+      };
+    }
     fields.push({ field: "parent", from: base.parent, to: local.parent });
-    payload["parent"] = local.parent === "" ? null : { key: local.parent };
+    payload["parent"] = { key: local.parent };
   }
 
   const added = local.children.filter((k) => !base.children.includes(k));
@@ -171,11 +196,6 @@ export function planPush(
       warnings.push(`${name} is read-only; the local edit to it is ignored`);
     }
   }
-  if (local.title !== "" && local.title !== `# ${local.key} ${local.summary}`) {
-    warnings.push(
-      "the title line disagrees with the summary; the summary in front matter was used",
-    );
-  }
 
   const appended = appendedComment(base, local);
   let commentBody: AdfNode | undefined;
@@ -217,6 +237,40 @@ export function planPush(
     warnings,
     refusal,
   };
+}
+
+/**
+ * A summary lives in two places in the file, and either one is enough to change
+ * it. Whichever moved against the base is the one that counts, so editing the
+ * title line alone works exactly as editing the front matter alone does — and
+ * the refresh afterwards rewrites the other, so the file settles on one answer.
+ *
+ * Only a file where both moved to *different* texts is ambiguous, and that is
+ * refused rather than guessed at: there is no way to tell which one the author
+ * meant.
+ */
+function resolveSummary(
+  base: ParsedIssue,
+  local: ParsedIssue,
+  key: string,
+): { summary?: string; refusal?: string } {
+  const titleChanged = local.title !== base.title;
+  const frontChanged = local.summary !== base.summary;
+  if (!titleChanged && !frontChanged) return {};
+  if (!titleChanged) return { summary: local.summary };
+
+  const fromTitle = titleSummary(local.title, key);
+  if (fromTitle === undefined) {
+    return { refusal: "the title line carries no summary text" };
+  }
+  if (frontChanged && fromTitle !== local.summary) {
+    return {
+      refusal: `the title line says "${fromTitle}" but the summary says ` +
+        `"${local.summary}" — change one of them, not both`,
+    };
+  }
+  const summary = frontChanged ? local.summary : fromTitle;
+  return summary === base.summary ? {} : { summary };
 }
 
 /**

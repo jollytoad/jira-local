@@ -22,10 +22,11 @@
   },
   "tasks": {
     "jira-local": "deno run --allow-net --allow-read --allow-write --allow-env --allow-run --env-file src/cli.ts",
-    "ok": "sh -n install.sh && deno fmt && deno lint && deno check && deno task check:merge && deno task check:pull && deno task check:push && deno task check:md && deno task publish:check",
+    "ok": "sh -n install.sh && deno fmt && deno lint && deno check && deno task check:merge && deno task check:pull && deno task check:push && deno task check:create && deno task check:md && deno task publish:check",
     "check:merge": "deno run --allow-read --allow-write --allow-run --allow-env src/tools/merge-check.ts",
     "check:pull": "deno run --allow-read --allow-write --allow-run --allow-env src/tools/pull-e2e.ts",
     "check:push": "deno run --allow-net --allow-read --allow-write --allow-run --allow-env src/tools/push-e2e.ts",
+    "check:create": "deno run --allow-net --allow-read --allow-write --allow-run --allow-env src/tools/create-e2e.ts",
     "check:md": "deno run --allow-read src/tools/md-roundtrip.ts",
     "version": "deno run --allow-read --allow-write tools/write-version.ts",
     "compile": "deno task version && deno compile -P --app-name jira-local --output jira-local src/cli.ts",

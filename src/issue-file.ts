@@ -136,6 +136,25 @@ export function appendedComment(
   return local.commentsRaw.slice(base.commentsRaw.length).trim();
 }
 
+/**
+ * The summary a `# KEY summary` line carries: everything after the `#` and the
+ * key, if the key is there at all. `undefined` when the line carries no text,
+ * which is a title with nothing in it rather than an empty summary.
+ */
+export function titleSummary(
+  title: string,
+  key: string,
+): string | undefined {
+  const text = title.replace(/^#/, "").trim();
+  if (text === "") return undefined;
+  const space = text.indexOf(" ");
+  // A title that does not repeat the key is the summary on its own.
+  if (space < 0) return text === key ? undefined : text;
+  return text.slice(0, space) === key
+    ? text.slice(space + 1).trim() || undefined
+    : text;
+}
+
 const ARRAY_FIELDS = new Set(["labels", "children", "linked"]);
 
 function coerce(attrs: Record<string, unknown>): IssueFrontMatter {
@@ -156,7 +175,16 @@ function coerce(attrs: Record<string, unknown>): IssueFrontMatter {
 }
 
 /** The front matter of a freshly rendered file, for comparison against a push. */
-export function frontMatterOf(issue: JiraIssue): IssueFrontMatter {
+export function frontMatterOf(
+  issue: JiraIssue,
+  childKeys?: readonly string[],
+): IssueFrontMatter {
+  const keys = new Set(
+    (issue.fields.subtasks ?? [])
+      .map((subtask) => subtask?.key ?? "")
+      .filter((key) => key !== ""),
+  );
+  for (const key of childKeys ?? []) keys.add(key);
   return coerce({
     key: issue.key,
     summary: issue.fields.summary ?? "",
@@ -168,9 +196,7 @@ export function frontMatterOf(issue: JiraIssue): IssueFrontMatter {
     reporter: issue.fields.reporter?.displayName ?? "",
     labels: issue.fields.labels ?? [],
     parent: issue.fields.parent?.key ?? "",
-    children: (issue.fields.subtasks ?? [])
-      .map((subtask) => subtask?.key ?? "")
-      .filter((key) => key !== ""),
+    children: [...keys].sort((a, b) => a.localeCompare(b)),
     linked: (issue.fields.issuelinks ?? [])
       .map((link) => (link.inwardIssue ?? link.outwardIssue)?.key ?? "")
       .filter((key) => key !== ""),

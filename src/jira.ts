@@ -16,6 +16,7 @@ import { pool } from "./util.ts";
 import { progress } from "./progress.ts";
 
 const SEARCH_PAGE_SIZE = 100;
+const CHILD_PAGE_SIZE = 500;
 const COMMENT_PAGE_SIZE = 100;
 const COMMENT_CONCURRENCY = 5;
 const MAX_RETRIES = 3;
@@ -319,21 +320,38 @@ export async function transitionIssue(
  * subtask operations need because they are keyed by id rather than key.
  *
  * `updated` arrives under `fields`, so it is unwrapped here rather than at
- * every call site.
+ * every call site. The type comes along because deciding how to re-parent an
+ * issue means knowing whether it is a Sub-task, which is the only kind Jira
+ * accepts as one.
  */
 export async function fetchIssueStamp(
   creds: Credentials,
   key: string,
-): Promise<{ updated?: string; id?: string }> {
+): Promise<
+  { updated?: string; id?: string; typeName?: string; subtask?: boolean }
+> {
   const issue = await requestJson<
-    { id?: string; fields?: { updated?: string } }
+    {
+      id?: string;
+      fields?: {
+        updated?: string;
+        issuetype?: { name?: string; subtask?: boolean };
+      };
+    }
   >(
     creds,
     "GET",
     `/rest/api/3/issue/${encodeURIComponent(key)}`,
-    { query: new URLSearchParams({ fields: "updated" }) },
+    {
+      query: new URLSearchParams({ fields: "updated,issuetype" }),
+    },
   );
-  return { updated: issue.fields?.updated, id: issue.id };
+  return {
+    updated: issue.fields?.updated,
+    id: issue.id,
+    typeName: issue.fields?.issuetype?.name,
+    subtask: issue.fields?.issuetype?.subtask === true,
+  };
 }
 
 /**
@@ -353,6 +371,109 @@ export async function fetchIssueTypes(
       typeof t.id === "string" && typeof t.name === "string"
     )
     .map((t) => ({ id: t.id, name: t.name, subtask: t.subtask === true }));
+}
+
+/**
+ * `POST /issue`, answered with 201 and `{id, key}` rather than the 204 the
+ * update path returns. The key is the whole point of the call, so a reply
+ * without one is a failure rather than an empty success.
+ */
+export async function createIssue(
+  creds: Credentials,
+  fields: Record<string, unknown>,
+): Promise<{ id: string; key: string }> {
+  const result = await requestJson<{ id?: string; key?: string }>(
+    creds,
+    "POST",
+    "/rest/api/3/issue",
+    { body: { fields } },
+  );
+  const key = result?.key;
+  if (typeof key !== "string" || key === "") {
+    throw new Error(
+      `Jira accepted the create but sent no key back: ${
+        JSON.stringify(result)
+      }`,
+    );
+  }
+  return { id: result?.id ?? "", key };
+}
+
+/**
+ * Links two issues, with the new one as the inward end. Direction matters for
+ * a one-way link type, so it is never left to the instance's default.
+ */
+export async function linkIssues(
+  creds: Credentials,
+  inwardKey: string,
+  outwardKey: string,
+  linkType: string,
+): Promise<void> {
+  await request(
+    creds,
+    "POST",
+    `/rest/api/3/issue/${encodeURIComponent(inwardKey)}/issuelink`,
+    {
+      body: {
+        type: { name: linkType },
+        inwardIssue: { key: inwardKey },
+        outwardIssue: { key: outwardKey },
+      },
+    },
+  );
+}
+
+/**
+ * Whether a create was refused over its parent, the one refusal worth retrying
+ * as a link. Jira says it in prose and offers no field for it, so this reads
+ * the message: if the wording ever changes the fallback simply stops firing,
+ * and the declaration stays in the file rather than being created wrongly.
+ */
+export function isParentRefusal(error: unknown): boolean {
+  return error instanceof JiraApiError &&
+    error.status >= 400 && error.status < 500 &&
+    /\bparent\b/i.test(error.body);
+}
+
+/**
+ * Every issue's parent, grouped by that parent.
+ *
+ * `fields.subtasks` only ever lists Sub-task children, so an Epic's real
+ * children never appear there: on the TEST project, `subtasks` on the Epic is
+ * empty while four issues name it as their parent. The Parent field is the only
+ * complete answer, and one narrow query gets it for the whole project at once.
+ * Fetched before the render, so every file in a pull agrees.
+ */
+export async function fetchChildMap(
+  creds: Credentials,
+  project: string,
+): Promise<Map<string, string[]>> {
+  const children = new Map<string, string[]>();
+  const jql = `project = ${
+    jqlQuote(project)
+  } AND parent is not EMPTY ORDER BY key ASC`;
+  let pageToken: string | undefined;
+  do {
+    const query = new URLSearchParams({
+      jql,
+      fields: "parent",
+      maxResults: String(CHILD_PAGE_SIZE),
+    });
+    if (pageToken !== undefined) query.set("nextPageToken", pageToken);
+    const page = await requestJson<{
+      issues?: Array<{ key?: string; fields?: { parent?: { key?: string } } }>;
+      nextPageToken?: string;
+    }>(creds, "GET", "/rest/api/3/search/jql", { query });
+    for (const issue of page.issues ?? []) {
+      const parent = issue.fields?.parent?.key;
+      if (issue.key === undefined || parent === undefined) continue;
+      const keys = children.get(parent) ?? [];
+      keys.push(issue.key);
+      children.set(parent, keys);
+    }
+    pageToken = page.nextPageToken;
+  } while (pageToken !== undefined);
+  return children;
 }
 
 /** One whole issue with its comments, for re-rendering after a write. */

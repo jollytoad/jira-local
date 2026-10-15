@@ -40,6 +40,32 @@ export interface IssueFileRef {
   relPath: string;
 }
 
+/**
+ * One new issue, declared as a top-level heading in a markdown file.
+ *
+ * `chunk` is the declaration exactly as written, which is what lets an issue
+ * that still holds other declarations be re-rendered from Jira and then have
+ * the survivors put back.
+ */
+export interface Declaration {
+  /** The heading, with a verified `[Type]` removed. */
+  summary: string;
+  /** The trailing `[Type]` as written, matched against the project or not. */
+  marker?: string;
+  /** The project's own spelling of the marker, when it named a real type. */
+  typeHint?: string;
+  /** The text under the heading, which becomes the description. */
+  body: string;
+  /** The heading and its body, verbatim. */
+  chunk: string;
+  /** 1-based line of the heading. */
+  line: number;
+  /** The issue this was declared inside, when there is one. */
+  hostKey?: string;
+  absPath: string;
+  relPath: string;
+}
+
 export interface LocalIssueFile extends IssueFileRef {
   /** SHA-256 of the file's bytes: enough to detect a change, cheap to keep. */
   hash: string;

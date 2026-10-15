@@ -6,6 +6,7 @@ import { reconcileCategories } from "../categories.ts";
 import { getConfig } from "../config.ts";
 import {
   countIssues,
+  fetchChildMap,
   fetchJiraIssues,
   preflightAuth,
   preflightProject,
@@ -157,6 +158,15 @@ export async function runPull(cli: PullOptions): Promise<void> {
   let issueCount = 0;
   let written = 0;
   const conflictKeys: string[] = [];
+  // Asked before the render: `subtasks` holds only Sub-task children, so an
+  // Epic's children have to be fetched to appear at all.
+  progress({
+    task: "children",
+    msg: "reading issue children",
+    status: "start",
+  });
+  const childMap = await fetchChildMap(creds, project);
+  progress({ task: "children", status: "ok" });
   // Promoted into the state file only once the whole stream finishes cleanly.
   let maxUpdated: string | undefined = previous?.maxUpdated;
 
@@ -172,7 +182,9 @@ export async function runPull(cli: PullOptions): Promise<void> {
       },
     })
   ) {
-    const pulled = contentToPulledIssue(jiraIssueToContent(issue, creds.site));
+    const pulled = contentToPulledIssue(
+      jiraIssueToContent(issue, creds.site, childMap.get(issue.key)),
+    );
     seenKeys.add(pulled.key);
     issueCount++;
     progress({ task: "render", msg: `issue rendered (${issue.key})`, inc: 1 });

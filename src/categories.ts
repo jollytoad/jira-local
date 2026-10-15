@@ -19,7 +19,7 @@ import { getConfig, isFrontMatterKey } from "./config.ts";
 import { categorizeIssue } from "./categorize.ts";
 import { listIssueFiles } from "./mirror.ts";
 import { hasConflictMarkers } from "./merge.ts";
-import { FRONT_MATTER_KEYS } from "./constants.ts";
+import { FRONT_MATTER_KEYS, NEW_DIR_NAME } from "./constants.ts";
 import type {
   FrontMatterKey,
   IndexColumn,
@@ -241,6 +241,9 @@ async function scanManagedCategories(
     for (const entry of entries) {
       if (entry.name.startsWith(".")) continue;
       if (segments.length === 0 && entry.name === rootDir) continue;
+      // `issues/new` holds declarations, not a category, so it is ours to skip
+      // rather than something to clean up.
+      if (segments.length === 0 && entry.name === NEW_DIR_NAME) continue;
       if (!entry.isDirectory()) continue;
       // A symlinked dir could point anywhere, so never treat it as ours.
       if (entry.isSymbolicLink()) continue;

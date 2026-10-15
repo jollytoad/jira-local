@@ -19,4 +19,14 @@ export interface JiraLocalConfig {
    * the field entirely to index every category with the default columns.
    */
   categoryIndex?: Partial<Record<FrontMatterKey, readonly IndexColumn[]>>;
+  /**
+   * The issue type a declaration gets when its heading names none. Defaults to
+   * `Task`, which is what a project nearly always has.
+   */
+  defaultIssueType?: string;
+  /**
+   * The link type used when a declared issue turns out not to be able to be a
+   * child of the issue it was declared in. Defaults to `Relates To`.
+   */
+  newIssueLinkType?: string;
 }

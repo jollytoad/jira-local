@@ -11,6 +11,7 @@ import { displayName, jiraTimestamp } from "./util.ts";
 export function jiraIssueToContent(
   issue: JiraIssue,
   siteUrl: string,
+  childKeys?: readonly string[],
 ): IssueFileContent {
   const fields = issue.fields;
   const status = fields.status?.name ?? "Unknown";
@@ -28,7 +29,7 @@ export function jiraIssueToContent(
     reporter: displayName(fields.reporter),
     labels: fields.labels ?? [],
     parent: fields.parent?.key ?? "",
-    children: refKeys(fields.subtasks ?? []),
+    children: childrenOf(issue, childKeys),
     linked: refKeys(
       (fields.issuelinks ?? []).map((link) =>
         link.inwardIssue ?? link.outwardIssue
@@ -98,4 +99,23 @@ function refKeys(
     if (key && !keys.includes(key)) keys.push(key);
   }
   return keys;
+}
+
+/**
+ * The issues whose Parent is this one.
+ *
+ * `childKeys` comes from `fetchChildMap`, which asks Jira for the Parent field
+ * and so covers every kind of child. `fields.subtasks` is only Sub-tasks, so it
+ * is the fallback for a caller with no map rather than the answer on its own:
+ * an Epic's children are real issues, not subtasks, and reading it alone leaves
+ * the array permanently empty. Sorted, so the file does not churn when Jira
+ * returns the same children in another order.
+ */
+function childrenOf(
+  issue: JiraIssue,
+  childKeys: readonly string[] | undefined,
+): string[] {
+  const keys = new Set(refKeys(issue.fields.subtasks ?? []));
+  for (const key of childKeys ?? []) keys.add(key);
+  return [...keys].sort((a, b) => a.localeCompare(b));
 }
