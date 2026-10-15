@@ -27,7 +27,7 @@ import process from "node:process";
 import { runPush } from "../commands/push.ts";
 import { fetchIssueStamp } from "../jira.ts";
 import { jiraTimestamp } from "../util.ts";
-import { BASE_DIR, ISSUES_DIR } from "../constants.ts";
+import { BASE_DIR, ISSUES_DIR, setJiraDir } from "../constants.ts";
 
 const UPDATED = "2026-05-01T09:15:00.000+0100";
 const CREATED = "2026-01-01T08:00:00.000+0000";
@@ -194,10 +194,11 @@ function renderIssue() {
 
 const cwd = process.cwd();
 const dir = await mkdtemp(join(cwd, ".tmp", "push-e2e-"));
-await mkdir(join(dir, ".jira", "issues", "all"), { recursive: true });
-await mkdir(join(dir, BASE_DIR), { recursive: true });
 process.chdir(dir);
-const outDir = join(process.cwd(), ISSUES_DIR);
+setJiraDir(".jira");
+await mkdir(ISSUES_DIR, { recursive: true });
+await mkdir(BASE_DIR, { recursive: true });
+const outDir = ISSUES_DIR;
 
 await writeFile(
   join(dir, ".jira", ".config.ts"),
@@ -247,7 +248,7 @@ function adfText(node: unknown): string {
 
 const baseFile = baseMarkdown();
 await writeFile(join(outDir, `${store.key}.md`), baseFile);
-await writeFile(join(dir, BASE_DIR, `${store.key}.md`), baseFile);
+await writeFile(join(BASE_DIR, `${store.key}.md`), baseFile);
 
 try {
   // The lease read must find `updated`, which Jira nests under `fields`.
@@ -331,7 +332,7 @@ try {
   );
 
   const newBase = await readFile(
-    join(dir, BASE_DIR, `${store.key}.md`),
+    join(BASE_DIR, `${store.key}.md`),
     "utf8",
   );
   check("the base was refreshed", newBase === after, "differs from the file");
@@ -363,15 +364,15 @@ try {
   );
   check(
     "the lease needs no separate file",
-    !(await readdir(join(dir, BASE_DIR))).includes("leases.json"),
-    `the base dir holds ${(await readdir(join(dir, BASE_DIR))).join(", ")}`,
+    !(await readdir(join(BASE_DIR))).includes("leases.json"),
+    `the base dir holds ${(await readdir(join(BASE_DIR))).join(", ")}`,
   );
 
   // A stale lease must refuse before anything is sent. Rewriting the stamp in
   // the base is all it takes now, since the lease lives in the front matter.
   await writeFile(
-    join(dir, BASE_DIR, `${store.key}.md`),
-    (await readFile(join(dir, BASE_DIR, `${store.key}.md`), "utf8")).replace(
+    join(BASE_DIR, `${store.key}.md`),
+    (await readFile(join(BASE_DIR, `${store.key}.md`), "utf8")).replace(
       `updated: '${store.updated}'`,
       "updated: '2020-01-01T00:00:00.000+0000'",
     ),
@@ -397,7 +398,7 @@ try {
 
   // Conflict markers must refuse too.
   await writeFile(
-    join(dir, BASE_DIR, `${store.key}.md`),
+    join(BASE_DIR, `${store.key}.md`),
     await readFile(join(outDir, `${store.key}.md`), "utf8"),
   );
   await writeFile(
@@ -424,7 +425,7 @@ try {
     bare,
   );
   await writeFile(join(outDir, `${store.key}.md`), bare);
-  await writeFile(join(dir, BASE_DIR, `${store.key}.md`), bare);
+  await writeFile(join(BASE_DIR, `${store.key}.md`), bare);
 
   await writeFile(
     join(outDir, `${store.key}.md`),
@@ -458,7 +459,7 @@ try {
 
   // An issue type is sent as an id, resolved from the project's own list.
   const typeBase = baseMarkdown();
-  await writeFile(join(dir, BASE_DIR, `${store.key}.md`), typeBase);
+  await writeFile(join(BASE_DIR, `${store.key}.md`), typeBase);
   await writeFile(
     join(outDir, `${store.key}.md`),
     typeBase.replace(`type: ${store.issueType}`, "type: Task"),
@@ -499,7 +500,7 @@ try {
 
   // A name the project does not offer must be refused, not guessed at.
   const badBase = baseMarkdown();
-  await writeFile(join(dir, BASE_DIR, `${store.key}.md`), badBase);
+  await writeFile(join(BASE_DIR, `${store.key}.md`), badBase);
   await writeFile(
     join(outDir, `${store.key}.md`),
     badBase.replace(`type: ${store.issueType}`, "type: Nonexistent Type"),

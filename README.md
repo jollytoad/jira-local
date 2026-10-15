@@ -171,6 +171,19 @@ Deno or Homebrew install is upgraded by whatever installed it
 
 `.jira/` and `.env` are gitignored, and `.jira/` is safe to delete at any time.
 
+`--dir` points the whole mirror somewhere else, which is useful for keeping a
+second project's mirror beside this one, or for working in a scratch directory:
+
+```sh
+jira-local --dir ../other-project/issues pull
+```
+
+It is a global option, so it goes on either side of the subcommand, and it
+applies to `init` too, so `jira-local init --dir ../other-project/issues`
+creates that directory's config rather than `.jira/`. Paths may be absolute or
+relative to the working directory. `upgrade` ignores it, as it replaces the
+executable rather than touching a mirror.
+
 ### Configuration
 
 Besides the connection fields, `.jira/.config.ts` can restrict which index pages

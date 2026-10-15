@@ -160,9 +160,18 @@ progress in `progress.ts` + `style.ts`, errors in `errors.ts`.
   _content_ per issue as the merge base, and `categories.ts` reads each issue's
   front matter itself, so an index page can never be built from a pre-pull
   snapshot.
-- `configPath()`, `statePath()` and `getConfig()` take no directory: everything
-  is anchored to `process.cwd()` plus `JIRA_DIR`. `getConfig()` stays cached per
-  path.
+- `configPath()`, `statePath()` and `getConfig()` take no directory: they read
+  `JIRA_DIR`, which `--dir` replaces during the parse through `setJiraDir()`.
+  `JIRA_DIR` holds an absolute path so `baseDir()` can be a bare return, and so
+  `join(JIRA_DIR, …)` stays correct for a path given from anywhere. `ISSUES_DIR`
+  and `BASE_DIR` are recomputed by that setter rather than derived at each read,
+  because importers bind them once. The tools that `chdir` into a scratch
+  directory call `setJiraDir(".jira")` after the `chdir`, or they would keep
+  writing to the repo's real mirror. `getConfig()` stays cached per path.
+- `--dir` is a global option with an `action`, like `--verbose`, rather than a
+  value read by each subcommand: cliffy runs the action during the parse, so no
+  command knows the mirror can move. `upgrade` calls `.noGlobals()` and so
+  ignores it, which is correct — it replaces the executable.
 - `.jira/.config.ts` (gitignored, `export const config`): connection fields
   `site`/`project`/`email`/`token` (used by pull, ignored by categorize,
   validated as non-empty strings, resolving with precedence flags > config) plus

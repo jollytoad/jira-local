@@ -5,12 +5,11 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import process from "node:process";
 import type { PullState } from "./types/jira-local.ts";
 import { JIRA_DIR } from "./constants.ts";
 
 export function statePath(): string {
-  return join(process.cwd(), JIRA_DIR, ".state.json");
+  return join(JIRA_DIR, ".state.json");
 }
 
 /** A corrupt or watermark-less file reads as absent, forcing a full pull. */

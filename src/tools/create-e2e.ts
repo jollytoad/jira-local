@@ -30,7 +30,13 @@ import {
 import { planCreate } from "../create.ts";
 import { parseIssueFile } from "../issue-file.ts";
 import { planPush } from "../push-plan.ts";
-import { BASE_DIR, ISSUES_DIR, NEW_DIR_NAME } from "../constants.ts";
+import {
+  BASE_DIR,
+  ISSUES_DIR,
+  JIRA_DIR,
+  NEW_DIR_NAME,
+  setJiraDir,
+} from "../constants.ts";
 
 const UPDATED = "2026-05-01T09:15:00.000+0100";
 const CREATED = "2026-01-01T08:00:00.000+0000";
@@ -553,11 +559,12 @@ check(
 
 const cwd = process.cwd();
 const dir = await mkdtemp(join(cwd, ".tmp", "create-e2e-"));
-await mkdir(join(dir, ".jira", "issues", "all"), { recursive: true });
-await mkdir(join(dir, BASE_DIR), { recursive: true });
-await mkdir(join(dir, ".jira", "issues", NEW_DIR_NAME), { recursive: true });
 process.chdir(dir);
-const outDir = join(process.cwd(), ISSUES_DIR);
+setJiraDir(".jira");
+await mkdir(ISSUES_DIR, { recursive: true });
+await mkdir(BASE_DIR, { recursive: true });
+await mkdir(join(JIRA_DIR, "issues", NEW_DIR_NAME), { recursive: true });
+const outDir = ISSUES_DIR;
 
 await writeFile(
   join(dir, ".jira", ".config.ts"),
@@ -602,14 +609,14 @@ The original description.
 
 const hostBase = baseFor("DDD-1", "An existing issue", "Story");
 await writeFile(join(outDir, "DDD-1.md"), hostBase);
-await writeFile(join(dir, BASE_DIR, "DDD-1.md"), hostBase);
+await writeFile(join(BASE_DIR, "DDD-1.md"), hostBase);
 
 // An Epic, whose children are real issues rather than subtasks — the case that
 // `fields.subtasks` cannot see.
 seed("DDD-2", { summary: "An epic", type: "Epic" });
 const epicBase = baseFor("DDD-2", "An epic", "Epic");
 await writeFile(join(outDir, "DDD-2.md"), epicBase);
-await writeFile(join(dir, BASE_DIR, "DDD-2.md"), epicBase);
+await writeFile(join(BASE_DIR, "DDD-2.md"), epicBase);
 
 try {
   // A dry run must plan the create and write nothing.
@@ -723,7 +730,7 @@ try {
   );
   check(
     "a new issue gets a base",
-    await readFile(join(dir, BASE_DIR, `${childKey}.md`), "utf8").then(
+    await readFile(join(BASE_DIR, `${childKey}.md`), "utf8").then(
       (text) => text === childFile,
       () => false,
     ),
@@ -949,7 +956,7 @@ try {
   // exit code is about what is being tested here.
   await writeFile(
     join(outDir, "DDD-1.md"),
-    await readFile(join(dir, BASE_DIR, "DDD-1.md"), "utf8"),
+    await readFile(join(BASE_DIR, "DDD-1.md"), "utf8"),
   );
   received.length = 0;
   await writeFile(

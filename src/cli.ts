@@ -5,6 +5,7 @@ import { Command } from "@cliffy/command";
 
 import { failAll, setVerbose } from "./progress.ts";
 import { disableColour } from "./style.ts";
+import { setJiraDir } from "./constants.ts";
 import { VERSION } from "./version.ts";
 import {
   ConfigError,
@@ -36,6 +37,14 @@ async function main(): Promise<number> {
       "--no-color",
       "Disable colour in task lines.",
       { global: true, action: () => disableColour() },
+    )
+    // Set here rather than passed down, so no subcommand has to know the mirror
+    // can move: constants.ts holds the one value every path is built from.
+    .option(
+      "--dir <path:string>",
+      "Directory holding the mirror, absolute or relative to the working " +
+        "directory (default: .jira).",
+      { global: true, action: (options) => setJiraDir(options.dir!) },
     )
     // Lazy so a pull never loads the prompt library, or vice versa. Help
     // loads them all: their descriptions live in the modules.

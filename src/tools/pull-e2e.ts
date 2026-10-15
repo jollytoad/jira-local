@@ -18,17 +18,18 @@ import { pullIssue, scanLocal } from "../mirror.ts";
 import { contentToPulledIssue, jiraIssueToContent } from "../render.ts";
 import { mergeIssueFile } from "../merge.ts";
 import { readBase } from "../base.ts";
-import { BASE_DIR, ISSUES_DIR } from "../constants.ts";
+import { BASE_DIR, ISSUES_DIR, setJiraDir } from "../constants.ts";
 import type { JiraIssue } from "../types/jira-raw.ts";
 
 const SITE = "https://fake.atlassian.net";
 
 const cwd = process.cwd();
 const dir = await mkdtemp(join(cwd, ".tmp", "pull-e2e-"));
-await mkdir(join(dir, ".jira", "issues", "all"), { recursive: true });
 process.chdir(dir);
+setJiraDir(".jira");
+await mkdir(ISSUES_DIR, { recursive: true });
 
-const outDir = join(process.cwd(), ISSUES_DIR);
+const outDir = ISSUES_DIR;
 const opts = { merge: true, dryRun: false };
 
 let failures = 0;
@@ -273,7 +274,7 @@ try {
   );
 
   // A missing base means Jira wins: there is no ancestor to merge against.
-  await rm(join(dir, BASE_DIR, "AAA-2.md"));
+  await rm(join(BASE_DIR, "AAA-2.md"));
   await writeFile(join(outDir, "AAA-2.md"), "orphan edit\n");
   await pullIssue(planned, await scanLocal(outDir, "AAA"), outDir, opts);
   check(

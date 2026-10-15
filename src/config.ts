@@ -18,7 +18,7 @@ import type { JiraLocalConfig } from "./types/config.ts";
 
 /** Sibling of the issues folder, like the state file. */
 export function configPath(): string {
-  return join(process.cwd(), JIRA_DIR, ".config.ts");
+  return join(JIRA_DIR, ".config.ts");
 }
 
 const cache = new Map<string, JiraLocalConfig>();

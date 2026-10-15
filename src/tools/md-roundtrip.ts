@@ -306,7 +306,7 @@ interface RealResult {
 
 /** Undefined when there is no mirror to read. */
 async function realDescriptions(): Promise<RealResult | undefined> {
-  const dir = join(process.cwd(), ISSUES_DIR);
+  const dir = ISSUES_DIR;
   let names: string[];
   try {
     names = await readdir(dir);

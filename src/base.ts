@@ -18,16 +18,11 @@ import {
   stat,
 } from "node:fs/promises";
 import { join } from "node:path";
-import process from "node:process";
 import { writeAtomic } from "./atomic.ts";
 import { BASE_DIR } from "./constants.ts";
 
-export function baseDir(): string {
-  return join(process.cwd(), BASE_DIR);
-}
-
 export function basePath(key: string): string {
-  return join(baseDir(), `${key}.md`);
+  return join(BASE_DIR, `${key}.md`);
 }
 
 export async function readBase(key: string): Promise<string | undefined> {
@@ -49,7 +44,7 @@ export async function writeBase(
   text: string,
   cloneFrom?: string,
 ): Promise<void> {
-  await mkdir(baseDir(), { recursive: true });
+  await mkdir(BASE_DIR, { recursive: true });
   const path = basePath(key);
   if (cloneFrom !== undefined && await exists(cloneFrom)) {
     try {
