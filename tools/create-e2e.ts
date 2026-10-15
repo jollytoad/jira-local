@@ -21,22 +21,22 @@ import {
 import { join } from "node:path";
 import process from "node:process";
 
-import { runPush } from "../commands/push.ts";
+import { runPush } from "../src/commands/push.ts";
 import {
   bodyText,
   removeDeclarations,
   scanDeclarations,
-} from "../declarations.ts";
-import { planCreate } from "../create.ts";
-import { parseIssueFile } from "../issue-file.ts";
-import { planPush } from "../push-plan.ts";
+} from "../src/declarations.ts";
+import { planCreate } from "../src/create.ts";
+import { parseIssueFile } from "../src/issue-file.ts";
+import { planPush } from "../src/push-plan.ts";
 import {
   BASE_DIR,
   ISSUES_DIR,
   JIRA_DIR,
   NEW_DIR_NAME,
   setJiraDir,
-} from "../constants.ts";
+} from "../src/constants.ts";
 
 const UPDATED = "2026-05-01T09:15:00.000+0100";
 const CREATED = "2026-01-01T08:00:00.000+0000";

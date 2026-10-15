@@ -12,8 +12,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import process from "node:process";
 
-import { hasConflictMarkers, mergeIssueFile } from "../merge.ts";
-import { TEMP_DIR } from "../constants.ts";
+import { hasConflictMarkers, mergeIssueFile } from "../src/merge.ts";
+import { TEMP_DIR } from "../src/constants.ts";
 
 // Under the project's own scratch dir, not the OS temp, so the check needs no
 // extra permission and leaves nothing behind on a clean run.

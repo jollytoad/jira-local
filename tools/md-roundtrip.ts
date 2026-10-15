@@ -19,10 +19,10 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import process from "node:process";
 
-import { adfToMarkdown } from "../adf-to-markdown.ts";
-import { markdownToAdf } from "../markdown-to-adf.ts";
-import { ISSUES_DIR } from "../constants.ts";
-import type { AdfNode } from "../types/adf.ts";
+import { adfToMarkdown } from "../src/adf-to-markdown.ts";
+import { markdownToAdf } from "../src/markdown-to-adf.ts";
+import { ISSUES_DIR } from "../src/constants.ts";
+import type { AdfNode } from "../src/types/adf.ts";
 
 interface Case {
   name: string;

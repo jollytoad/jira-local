@@ -14,12 +14,12 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import process from "node:process";
 
-import { pullIssue, scanLocal } from "../mirror.ts";
-import { contentToPulledIssue, jiraIssueToContent } from "../render.ts";
-import { mergeIssueFile } from "../merge.ts";
-import { readBase } from "../base.ts";
-import { BASE_DIR, ISSUES_DIR, setJiraDir } from "../constants.ts";
-import type { JiraIssue } from "../types/jira-raw.ts";
+import { pullIssue, scanLocal } from "../src/mirror.ts";
+import { contentToPulledIssue, jiraIssueToContent } from "../src/render.ts";
+import { mergeIssueFile } from "../src/merge.ts";
+import { readBase } from "../src/base.ts";
+import { BASE_DIR, ISSUES_DIR, setJiraDir } from "../src/constants.ts";
+import type { JiraIssue } from "../src/types/jira-raw.ts";
 
 const SITE = "https://fake.atlassian.net";
 

@@ -24,10 +24,10 @@ import {
 import { join } from "node:path";
 import process from "node:process";
 
-import { runPush } from "../commands/push.ts";
-import { fetchIssueStamp } from "../jira.ts";
-import { jiraTimestamp } from "../util.ts";
-import { BASE_DIR, ISSUES_DIR, setJiraDir } from "../constants.ts";
+import { runPush } from "../src/commands/push.ts";
+import { fetchIssueStamp } from "../src/jira.ts";
+import { jiraTimestamp } from "../src/util.ts";
+import { BASE_DIR, ISSUES_DIR, setJiraDir } from "../src/constants.ts";
 
 const UPDATED = "2026-05-01T09:15:00.000+0100";
 const CREATED = "2026-01-01T08:00:00.000+0000";

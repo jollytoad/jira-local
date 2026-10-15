@@ -3,7 +3,7 @@
 ## Commands
 
 ```sh
-deno task ok                          # sh -n installer + fmt + lint + typecheck + src/tools checks + publish dry run
+deno task ok                          # sh -n installer + fmt + lint + typecheck + tools checks + publish dry run
 deno task version                     # regenerate src/version.ts from deno.json (CI fails a release that forgets)
 deno task jira-local init             # create .jira/.config.ts (--yes skips prompts; refuses if it exists)
 deno task jira-local pull             # incremental pull
@@ -138,18 +138,18 @@ progress in `progress.ts` + `style.ts`, errors in `errors.ts`.
 
 - Each command lives in `src/commands/<name>.ts` with its orchestration
   (`runPull`/`runPush`/`runCategorize`) beside the definition.
-- `src/tools/` holds development aids, not tests: `merge-check.ts` drives the
-  merge engine through its cases plus a real file, `pull-e2e.ts` drives the
-  whole write path over a scratch project, `push-e2e.ts` drives `runPush`
-  against a fake Jira over real HTTP, `create-e2e.ts` does the same for
-  declaring and creating issues, and `md-roundtrip.ts` checks the markdown
-  subset against every description in the mirror. All five run as part of
-  `deno task ok`. Only `push-e2e.ts` and `create-e2e.ts` exercise response
-  parsing, so a change to the shape of a Jira reply needs those two rerun.
-  `md-roundtrip` reports refusals as counts rather than failures, because a
-  construct outside the subset is the designed outcome; it checks that no _text_
-  is lost, not that the tree is identical, because `adf-to-markdown.ts`
-  normalises whitespace and merges paragraphs in a list item.
+- `tools/` holds development aids, not tests: `merge-check.ts` drives the merge
+  engine through its cases plus a real file, `pull-e2e.ts` drives the whole
+  write path over a scratch project, `push-e2e.ts` drives `runPush` against a
+  fake Jira over real HTTP, `create-e2e.ts` does the same for declaring and
+  creating issues, and `md-roundtrip.ts` checks the markdown subset against
+  every description in the mirror. All five run as part of `deno task ok`. Only
+  `push-e2e.ts` and `create-e2e.ts` exercise response parsing, so a change to
+  the shape of a Jira reply needs those two rerun. `md-roundtrip` reports
+  refusals as counts rather than failures, because a construct outside the
+  subset is the designed outcome; it checks that no _text_ is lost, not that the
+  tree is identical, because `adf-to-markdown.ts` normalises whitespace and
+  merges paragraphs in a list item.
 - `install.sh` is the only shell in the repo: POSIX `sh`, no bashisms, `curl` +
   `tar` + a sha256 tool only. It resolves "latest" by following the
   `releases/latest` redirect rather than the GitHub api, so it needs no token
