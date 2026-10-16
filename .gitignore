@@ -3,3 +3,7 @@
 .tmp
 jira-local
 jira-local-*
+node_modules/
+playwright-bdd-gen/
+test-results/
+playwright-report/

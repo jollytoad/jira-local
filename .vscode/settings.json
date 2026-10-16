@@ -1,5 +1,11 @@
 {
   "deno.enable": true,
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "denoland.vscode-deno"
+  "editor.defaultFormatter": "denoland.vscode-deno",
+  "cucumber.features": [
+    "test/features/*.feature"
+  ],
+  "cucumber.glue": [
+    "test/steps/*.ts"
+  ]
 }
