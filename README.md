@@ -203,9 +203,11 @@ export const config: JiraLocalConfig = {
 ```
 
 Index pages hold a markdown table sorted by issue key; `key` renders as a link
-into `all/`, any other column as the raw front-matter value. Names are
-front-matter field names, enforced at type-check and runtime: a config naming
-anything else aborts the run with a validation error before anything is written.
+into `all/`, any other column as the raw front-matter value. The link is
+relative to the page's own folder, so `status/To Do.md` links to
+`../all/<KEY>.md`. Names are front-matter field names, enforced at type-check
+and runtime: a config naming anything else aborts the run with a validation
+error before anything is written.
 
 ## Semantics and caveats
 

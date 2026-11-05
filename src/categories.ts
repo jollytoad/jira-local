@@ -57,7 +57,7 @@ export async function reconcileCategories(
 
   // Nested categories can be new, so create the parent directory on demand.
   for (const category of byDepth(content.keys())) {
-    const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
+    const indexPath = indexPagePath(categoriesDir, category);
     const rendered = content.get(category) ?? "";
     const rel = relative(categoriesDir, indexPath).replaceAll(sep, "/");
     let existing: string | undefined;
@@ -86,7 +86,7 @@ export async function reconcileCategories(
   // Anything on disk no longer in the desired set is stale and goes.
   for (const category of scanned) {
     if (content.has(category)) continue;
-    const indexPath = join(categoriesDir, ...category.split("/")) + ".md";
+    const indexPath = indexPagePath(categoriesDir, category);
     const rel = relative(categoriesDir, indexPath).replaceAll(sep, "/");
     let exists = false;
     try {
@@ -106,6 +106,14 @@ export async function reconcileCategories(
   progress({ task: "index-delete", msg: "indexes removed", status: "stop" });
 
   return counters;
+}
+
+/**
+ * Where a category's index page lives: the category path with `.md` on the
+ * end, so `status/To Do` is `status/To Do.md` beside `all/`.
+ */
+function indexPagePath(categoriesDir: string, category: string): string {
+  return join(categoriesDir, ...category.split("/")) + ".md";
 }
 
 /**
@@ -140,7 +148,7 @@ async function buildDesired(
         key: file.key,
         frontMatter,
         targetRel: relative(
-          join(categoriesDir, ...segments),
+          dirname(indexPagePath(categoriesDir, category)),
           file.absPath,
         ).replaceAll(sep, "/"),
       });

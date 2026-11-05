@@ -197,7 +197,10 @@ progress in `progress.ts` + `style.ts`, errors in `errors.ts`.
   `["key", "summary"]`, `key` linking into `all/`), rows sorted by key. Written
   only when content differs, removed when the category goes stale or loses its
   index entry. A pull that wrote and pruned nothing skips reconciliation
-  entirely — the pages cannot have changed.
+  entirely — the pages cannot have changed. The `key` link is relative to the
+  page's own folder, so `status/To Do.md` links to `../all/<KEY>.md`; the page
+  path comes from `indexPagePath` in `categories.ts`, which the link base uses
+  too, so the two cannot drift apart.
 - `.jira/` is gitignored generated output and safe to delete; deleting
   `.jira/.state.json` forces a full pull.
 - Write-back: `.jira/.base/<KEY>.md` is the merge base (the last version Jira
