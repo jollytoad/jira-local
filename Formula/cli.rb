@@ -1,25 +1,25 @@
 class Cli < Formula
   desc "Mirror a Jira Cloud project to local markdown files"
   homepage "https://github.com/jollytoad/jira-local"
-  version "0.3.0"
+  version "0.3.1"
   on_macos do
     on_arm do
       url "https://github.com/jollytoad/jira-local/releases/download/v#{version}/jira-local-v#{version}-aarch64-apple-darwin.tar.gz"
-      sha256 "8cb79a781dcce4ff7a754bd3ce602cf809becc326aa5281445fc41095f3b12fe"
+      sha256 "834c276e8c563327aaaee28c82db4688185862e9972818ad101ba75a6b104ef2"
     end
     on_intel do
       url "https://github.com/jollytoad/jira-local/releases/download/v#{version}/jira-local-v#{version}-x86_64-apple-darwin.tar.gz"
-      sha256 "5e142c536f078c7264786b35a58768dc03a1448213fc30ce5cd90f5d15c6dc72"
+      sha256 "5d147521d9174866b434ac08da282a8a510c0882521863c5291fef8bafd5e083"
     end
   end
   on_linux do
     on_arm do
       url "https://github.com/jollytoad/jira-local/releases/download/v#{version}/jira-local-v#{version}-aarch64-unknown-linux-gnu.tar.gz"
-      sha256 "941c4f7567efe617ef317c24827efc7b09f2c7c5733a90a76832ef3349a3996d"
+      sha256 "c661e02ce9e08be712ff0a22e519ea926af84acca28d7d680220914853040561"
     end
     on_intel do
       url "https://github.com/jollytoad/jira-local/releases/download/v#{version}/jira-local-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "dccc79232a15c8230fa2ba093a73df2be52f9a05fee98329612ab7b8b390c31c"
+      sha256 "9e4aab28c4a701dbf02d7fe58ce0b84551997c8e3eadc66742cc3f66f9f3848b"
     end
   end
   def install
